@@ -1,35 +1,108 @@
-import React, { useState } from "react";
-import { Tag, Space, Dropdown, App } from "antd";
+import React, { useEffect, useMemo, useState } from "react";
+import { Tag, Space, Dropdown, App, Select, Button, Tooltip } from "antd";
 import {
   CheckCircleFilled,
   CloseCircleFilled,
   ExperimentOutlined,
   DeleteOutlined,
   MoreOutlined,
+  ReloadOutlined,
 } from "@ant-design/icons";
 import CommonTableLayout from "../components/CommonTableLayout";
-import { generateUsers } from "../data/mockData";
+import { useUsersList } from "../hooks/useUsersList";
 
 const StatusIcon = ({ value }) =>
-  value ? (
+  Number(value) ? (
     <CheckCircleFilled style={{ color: "#52c41a", fontSize: 14 }} />
   ) : (
     <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 14 }} />
   );
 
+const normalizeLabel = (value) => {
+  if (value === null || value === undefined || value === "") return "--";
+  return String(value)
+    .trim()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const formatDate = (value) => {
+  if (!value) return "--";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+};
+
+const formatDateAndTime = (value) => {
+  if (!value) return "--";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
 export default function UsersPage() {
   const { message, modal } = App.useApp();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [emailSearch, setEmailSearch] = useState("");
+  const [debouncedEmailSearch, setDebouncedEmailSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState(undefined);
+  const [roleFilter, setRoleFilter] = useState(undefined);
+  const [countryFilter, setCountryFilter] = useState(undefined);
+  const [sortOrder, setSortOrder] = useState("desc");
 
-  const [users, setUsers] = useState(generateUsers(100));
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedEmailSearch(emailSearch.trim());
+      setPage(1);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [emailSearch]);
+
+  const filters = useMemo(() => {
+    const nextFilters = {};
+
+    if (debouncedEmailSearch) nextFilters.email = debouncedEmailSearch;
+    if (statusFilter) nextFilters.status = statusFilter;
+    if (roleFilter) nextFilters.role = roleFilter;
+    if (countryFilter) nextFilters.country = countryFilter;
+
+    return nextFilters;
+  }, [countryFilter, debouncedEmailSearch, roleFilter, statusFilter]);
+
+  const { data: usersResponse, isLoading, isFetching, refetch } = useUsersList({
+    page,
+    limit: pageSize,
+    filters,
+    sortOrder,
+  });
+
+  const users = usersResponse?.data || [];
+  const pagination = usersResponse?.pagination || {};
 
   const handleTrial = (user) => {
-    if (user.status === "Active") return message.error("Trial already active");
+    if (String(user.status).toLowerCase() === "active") {
+      return message.error("Trial already active");
+    }
+
     modal.confirm({
       title: "Start Trial",
       onOk: () => {
-        setUsers((prev) =>
-          prev.map((u) => (u.id === user.id ? { ...u, status: "Active" } : u)),
-        );
         message.success("7-day trial started");
       },
     });
@@ -40,78 +113,141 @@ export default function UsersPage() {
       title: "Confirm Delete",
       okType: "danger",
       onOk: () => {
-        setUsers((prev) => prev.filter((u) => u.id !== id));
-        message.success("User deleted");
+        message.success(`User ${id} deleted`);
       },
     });
   };
 
-  // ── Columns ──────────────────────────────────────────────
+  const clearFilters = () => {
+    setEmailSearch("");
+    setDebouncedEmailSearch("");
+    setStatusFilter(undefined);
+    setRoleFilter(undefined);
+    setCountryFilter(undefined);
+    setSortOrder("desc");
+    setPage(1);
+    setPageSize(25);
+  };
+
+  const renderDateWithHover = (value) => (
+    <Tooltip title={value || "N/A"}>
+      <span style={{ cursor: 'pointer' }}>
+        {formatDate(value)}
+      </span>
+    </Tooltip>
+  );
+
   const columns = [
     {
       title: "First Name",
       dataIndex: "first_name",
       width: 120,
       ellipsis: true,
+      render: (value) => normalizeLabel(value),
     },
-    { title: "Last Name", dataIndex: "last_name", width: 120, ellipsis: true },
+    {
+      title: "Last Name",
+      dataIndex: "last_name",
+      width: 120,
+      ellipsis: true,
+      render: (value) => normalizeLabel(value),
+    },
     { title: "Email", dataIndex: "email", width: 220, ellipsis: true },
-    { title: "Phone", dataIndex: "phone_number", width: 130 },
+    { title: "Phone", dataIndex: "phone_number", width: 150, ellipsis: true },
     {
       title: "Status",
       dataIndex: "status",
-      width: 90,
-      render: (s) => (
-        <b style={{ color: s === "Active" ? "#52c41a" : "#ff4d4f" }}>{s}</b>
-      ),
+      width: 100,
+      render: (status) => {
+        const value = String(status || "").toLowerCase();
+        const color = value === "active" ? "#52c41a" : "#faad14";
+        return <b style={{ color }}>{normalizeLabel(status)}</b>;
+      },
     },
     {
       title: "Role",
       dataIndex: "role",
-      width: 90,
-      render: (r) => (
+      width: 100,
+      render: (role) => (
         <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>
-          {r}
+          {normalizeLabel(role)}
         </Tag>
       ),
     },
-    { title: "Country", dataIndex: "country", width: 110, ellipsis: true },
+    {
+      title: "Country",
+      dataIndex: "country",
+      width: 120,
+      ellipsis: true,
+      render: (value) => normalizeLabel(value),
+    },
     { title: "State", dataIndex: "state", width: 110, ellipsis: true },
-    { title: "City", dataIndex: "city", width: 110, ellipsis: true },
-    { title: "Created", dataIndex: "created_at", width: 110 },
-    { title: "Activate", dataIndex: "activateDate", width: 110 },
-    { title: "Expiry", dataIndex: "expiryDate", width: 110 },
-    { title: "Plan ID", dataIndex: "planId", width: 90 },
+    {
+      title: "City",
+      dataIndex: "city",
+      width: 110,
+      ellipsis: true,
+      render: (value) => normalizeLabel(value),
+    },
+    {
+      title: "Created",
+      dataIndex: "created_at",
+      width: 120,
+      render: renderDateWithHover,
+    },
+    {
+      title: "Activate",
+      dataIndex: "activateDate",
+      width: 120,
+      render: renderDateWithHover,
+    },
+    {
+      title: "Expiry",
+      dataIndex: "expiryDate",
+      width: 120,
+      render: renderDateWithHover,
+    },
+    { title: "Plan ID", dataIndex: "planId", width: 90, render: (value) => value ?? "--" },
     {
       title: "Mob Ver",
       dataIndex: "isMobileVerified",
       width: 80,
       align: "center",
-      render: (v) => <StatusIcon value={v} />,
+      render: (value) => <StatusIcon value={value} />,
     },
     {
       title: "Email Ver",
       dataIndex: "isEmailVerified",
       width: 80,
       align: "center",
-      render: (v) => <StatusIcon value={v} />,
+      render: (value) => <StatusIcon value={value} />,
     },
-    { title: "Perm ID", dataIndex: "permissionId", width: 100 },
+    {
+      title: "Perm ID",
+      dataIndex: "permissionId",
+      width: 100,
+      render: (value) => value ?? "--",
+    },
     {
       title: "B. Addon",
       dataIndex: "broker_addon",
       width: 90,
       align: "center",
-      render: (v) => (v ? "Yes" : "No"),
+      render: (value) => (value ? "Yes" : "No"),
     },
     {
       title: "B. Active",
       dataIndex: "active_broker",
       width: 90,
       align: "center",
-      render: (v) => (v ? "Yes" : "No"),
+      render: (value) => (value ? "Yes" : "No"),
     },
-    { title: "Group", dataIndex: "group", width: 100 },
+    {
+      title: "Group",
+      dataIndex: "group",
+      width: 100,
+      render: (value) => value ?? "--",
+    },
     {
       title: "Action",
       key: "action",
@@ -146,18 +282,83 @@ export default function UsersPage() {
     },
   ];
 
-  // ── Modal Form ────────────────────────────────────────────
-
   return (
     <CommonTableLayout
-      // Table
       columns={columns}
       dataSource={users}
       rowKey="id"
-      // Search
-      searchFields={["first_name", "last_name", "email", "phone_number"]}
-      searchPlaceholder="Search name, email, phone..."
-      // Export
+      loading={isLoading || isFetching}
+      pageSize={pageSize}
+      disableClientSearch
+      searchValue={emailSearch}
+      onSearchChange={setEmailSearch}
+      searchPlaceholder="Search by email..."
+      pagination={{
+        current: pagination.page || page,
+        pageSize: pagination.limit || pageSize,
+        total: pagination.total || 0,
+        size: "small",
+        position: ["bottomRight"],
+        showSizeChanger: true,
+        pageSizeOptions: [10, 25, 50, 100],
+        onChange: (nextPage, nextPageSize) => {
+          setPage(nextPage);
+          if (nextPageSize !== pageSize) {
+            setPageSize(nextPageSize);
+            if (nextPage !== 1) setPage(1);
+          }
+        },
+      }}
+      toolbarExtra={
+        <Space wrap>
+          <Select
+            allowClear
+            placeholder="Status"
+            style={{ width: 120 }}
+            value={statusFilter}
+            onChange={(value) => {
+              setStatusFilter(value);
+              setPage(1);
+            }}
+            options={[
+              { label: "Active", value: "active" },
+              { label: "Trial", value: "trial" },
+              { label: "Expired", value: "expired" },
+            ]}
+          />
+          <Select
+            allowClear
+            placeholder="Role"
+            style={{ width: 120 }}
+            value={roleFilter}
+            onChange={(value) => {
+              setRoleFilter(value);
+              setPage(1);
+            }}
+            options={[
+              { label: "Admin", value: "admin" },
+              { label: "User", value: "user" },
+            ]}
+          />
+          <Select
+            placeholder="Sort"
+            style={{ width: 140 }}
+            value={sortOrder}
+            onChange={(value) => {
+              setSortOrder(value);
+              setPage(1);
+            }}
+            options={[
+              { label: "Newest first", value: "desc" },
+              { label: "Oldest first", value: "asc" },
+            ]}
+          />
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+            Refresh
+          </Button>
+          <Button onClick={clearFilters}>Reset</Button>
+        </Space>
+      }
       exportFilename="users"
       exportHeaders={[
         "ID",
@@ -171,17 +372,17 @@ export default function UsersPage() {
         "City",
         "Created At",
       ]}
-      exportMapper={(u) => [
-        u.id,
-        u.first_name,
-        u.last_name,
-        u.email,
-        u.phone_number,
-        u.status,
-        u.role,
-        u.country,
-        u.city,
-        u.created_at,
+      exportMapper={(user) => [
+        user.id,
+        user.first_name,
+        user.last_name,
+        user.email,
+        user.phone_number,
+        user.status,
+        user.role,
+        user.country,
+        user.city,
+        user.created_at,
       ]}
     />
   );

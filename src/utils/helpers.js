@@ -1,3 +1,28 @@
+import reactSecureStorage from 'react-secure-storage';
+
+export const setLocalStorageData = (event, data) => {
+  reactSecureStorage.setItem(event, data == undefined ? null : data);
+};
+
+export const getLocalStorageData = (key) => {
+  return reactSecureStorage.getItem(key) || null;
+};
+
+export const removeLocalStorageData = (key) => {
+  return reactSecureStorage.removeItem(key);
+};
+
+export const getUserEmail = () => {
+  return reactSecureStorage.getItem('email') || '';
+};
+
+export const getUserData = () => {
+  const access_token = reactSecureStorage.getItem('access_token');
+  return {
+    access_token: access_token ? access_token : '',
+  };
+};
+
 export function exportCSV(data, filename = 'export.csv') {
   if (!data.length) return false;
   const keys = Object.keys(data[0]);

@@ -14,7 +14,6 @@ export const callAPI = async (
   url: string,
   data: any,
   authToken?: string,
-  isBearer?: boolean,
 ) => {
   try {
     const headers: any = {

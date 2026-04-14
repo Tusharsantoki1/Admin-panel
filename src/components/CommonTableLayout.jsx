@@ -59,10 +59,15 @@ export default function CommonTableLayout({
   pageSize = 20,
   scroll,
   onPageChange,
+  pagination,
+  onTableChange,
 
   // Search
   searchFields = ["first_name", "last_name", "email", "phone_number"],
   searchPlaceholder = "Search...",
+  searchValue,
+  onSearchChange,
+  disableClientSearch = false,
 
   // Export
   exportFilename = "export",
@@ -84,23 +89,31 @@ export default function CommonTableLayout({
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const isControlledSearch = typeof searchValue === "string";
+  const activeSearchInput = isControlledSearch ? searchValue : searchInput;
 
   // Debounced search
   useEffect(() => {
+    if (isControlledSearch) return undefined;
     const timer = setTimeout(() => {
       setPage(1);
       setSearchQuery(searchInput);
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [isControlledSearch, searchInput]);
 
   // Reset page when data changes
   useEffect(() => {
+    if (pagination?.current) {
+      setPage(pagination.current);
+      return;
+    }
     setPage(1);
-  }, [dataSource]);
+  }, [dataSource, pagination?.current]);
 
   // Multi-field filtering
   const filteredData = useMemo(() => {
+    if (disableClientSearch) return dataSource;
     if (!searchQuery) return dataSource;
     const q = searchQuery.toLowerCase();
     return dataSource.filter((row) =>
@@ -110,7 +123,7 @@ export default function CommonTableLayout({
           .includes(q),
       ),
     );
-  }, [dataSource, searchQuery, searchFields]);
+  }, [dataSource, disableClientSearch, searchQuery, searchFields]);
 
   // Numbered "Sr." column prepended automatically
   const numberedColumns = useMemo(
@@ -150,9 +163,9 @@ export default function CommonTableLayout({
     message.success("CSV exported successfully");
   };
 
-  const handlePageChange = (p) => {
+  const handlePageChange = (p, nextPageSize) => {
     setPage(p);
-    onPageChange?.(p);
+    onPageChange?.(p, nextPageSize);
   };
 
   return (
@@ -193,8 +206,15 @@ export default function CommonTableLayout({
             size="middle"
             allowClear
             style={{ maxWidth: 250 }}
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            value={activeSearchInput}
+            onChange={(e) => {
+              const nextValue = e.target.value;
+              if (isControlledSearch) {
+                onSearchChange?.(nextValue);
+                return;
+              }
+              setSearchInput(nextValue);
+            }}
           />
         </Space>
       </Flex>
@@ -208,15 +228,18 @@ export default function CommonTableLayout({
           loading={loading}
           size="small"
           bordered
-          pagination={{
-            current: page,
-            pageSize,
-            total: filteredData.length,
-            size: "small",
-            position: ["bottomRight"],
-            onChange: handlePageChange,
-            showSizeChanger: false,
-          }}
+          pagination={
+            pagination ?? {
+              current: page,
+              pageSize,
+              total: filteredData.length,
+              size: "small",
+              position: ["bottomRight"],
+              onChange: handlePageChange,
+              showSizeChanger: false,
+            }
+          }
+          onChange={onTableChange}
           scroll={
             scroll ?? {
               x: "max-content",
