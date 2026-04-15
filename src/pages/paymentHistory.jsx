@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Tag, Dropdown, App, Tooltip } from "antd";
 import {
   DeleteOutlined,
@@ -9,11 +9,17 @@ import {
 import CommonTableLayout from "../components/CommonTableLayout";
 import { usePaymentHistoryList } from "../hooks/usePaymentHistoryList";
 import { renderDateWithHover } from "./UsersPage";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function History() {
   // Note: the prop 'users' should ideally be 'historyData' now based on your JSON
   const { data } = usePaymentHistoryList();
+  const queryClient = useQueryClient();
 
+  useEffect(() => {
+    if (!data) return
+    queryClient.setQueryData(['title'], { title: 'Payment History', count: data?.data?.length || '' })
+  }, [data])
   const columns = [
     {
       title: "User ID",

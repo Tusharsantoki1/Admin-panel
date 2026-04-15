@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Tag, Dropdown, App, Tooltip } from "antd";
 import {
   DeleteOutlined,
@@ -9,32 +9,16 @@ import {
 import CommonTableLayout from "../components/CommonTableLayout";
 import { useCuponList } from "../hooks/useCuponList";
 import { renderDateWithHover } from "./UsersPage";
+import { useQueryClient } from "@tanstack/react-query";
 
-export default function CouponPage({ coupons, setCoupons }) {
-  const { message, modal } = App.useApp();
+export default function CouponPage() {
   const { data } = useCuponList();
+  const queryClient = useQueryClient();
 
-  const handleDelete = (id) => {
-    modal.confirm({
-      title: "Confirm Delete",
-      okType: "danger",
-      onOk: () => {
-        setCoupons((prev) => prev.filter((c) => c.id !== id));
-        message.success("Coupon deleted");
-      },
-    });
-  };
-
-  const toggleStatus = (record) => {
-    setCoupons((prev) =>
-      prev.map((c) =>
-        c.id === record.id
-          ? { ...c, isActive: c.isActive === 1 ? 0 : 1 }
-          : c,
-      ),
-    );
-    message.success("Status updated");
-  };
+  useEffect(() => {
+    if (!data) return
+    queryClient.setQueryData(['title'], { title: 'Coupons', count: data?.data?.length || '' })
+  }, [data])
 
   const columns = [
     {
@@ -49,6 +33,12 @@ export default function CouponPage({ coupons, setCoupons }) {
       dataIndex: "code",
       width: 120,
       render: (v) => <Tag color="blue">{v}</Tag>,
+    },
+    {
+      title: "Created At",
+      dataIndex: "created_at",
+      width: 180,
+      render: renderDateWithHover,
     },
     {
       title: "Value",
@@ -133,12 +123,6 @@ export default function CouponPage({ coupons, setCoupons }) {
       title: "Expiry At",
       dataIndex: "expiryAt",
       width: 160,
-      render: renderDateWithHover,
-    },
-    {
-      title: "Created At",
-      dataIndex: "created_at",
-      width: 180,
       render: renderDateWithHover,
     },
     {

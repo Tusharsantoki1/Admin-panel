@@ -21,7 +21,10 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "../components/Badge";
-import BASE_URL from "../api/config";
+import { useUsersList } from "../hooks/useUsersList";
+import { toTitleCase } from "../utils/helpers";
+import { renderDateTimeWithHover, renderDateWithHover } from "./UsersPage";
+import { useQueryClient } from "@tanstack/react-query";
 
 const { Title, Text } = Typography;
 
@@ -99,14 +102,18 @@ function StatCard({
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { token } = theme.useToken();
-
-  const [users, setUsers] = useState([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    active: 0,
-    today: 0,
+  const queryClient = useQueryClient();
+  const { data: usersResponse, isLoading } = useUsersList({
+    page: 1,
+    limit: 25,
+    filters: {},
+    sortOrder: 'desc',
   });
-  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    queryClient.setQueryData(['title'], { title: 'Dashboard', count: '' })
+  }, [])
+
 
   const tableColumns = [
     {
@@ -120,45 +127,60 @@ export default function DashboardPage() {
               backgroundColor: "#E8F0FF",
               color: token.colorPrimary,
               fontWeight: 700,
+              fontSize: 12,
+              height: 28,
+              width: 28,
             }}
           >
-            {`${user.first_name?.[0] ?? ""}${user.last_name?.[0] ?? ""}`}
+            {`${user.first_name?.[0]?.toUpperCase() ?? ""}${user.last_name?.[0]?.toUpperCase() ?? ""}`}
           </Avatar>
           <div>
             <div style={{ fontWeight: 600, color: "#16213E" }}>
               {user.first_name} {user.last_name}
             </div>
-            <Text style={{ fontSize: 12, color: "#6B7280" }}>{user.email}</Text>
           </div>
         </Flex>
       ),
     },
     {
+      title: "Email",
+      dataIndex: "email",
+      key: "email",
+    },
+    {
+      title: "Phone",
+      dataIndex: "phone_number",
+      key: "phone_number",
+    },
+    {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (value) => <Badge label={value} />,
+      render: (value) => <Badge label={toTitleCase(value)} />,
     },
     {
       title: "Role",
       dataIndex: "role",
       key: "role",
-      render: (value) => <Badge label={value} />,
+      render: (value) => <Badge label={toTitleCase(value)} />,
     },
+    { title: "State", dataIndex: "state", width: 110, ellipsis: true },
     {
-      title: "Country",
-      dataIndex: "country",
-      key: "country",
+      title: "City",
+      dataIndex: "city",
+      width: 110,
+      ellipsis: true,
+      render: (value) => toTitleCase(value),
     },
     {
       title: "Joined",
       dataIndex: "created_at",
       key: "created_at",
-      render: (value) => <Text style={{ color: "#6B7280" }}>{value}</Text>,
+      render: renderDateTimeWithHover,
     },
   ];
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div
         style={{
@@ -244,7 +266,7 @@ export default function DashboardPage() {
         <Col xs={24} md={12} xl={8}>
           <StatCard
             label="Total Users"
-            value={stats.total.toLocaleString()}
+            value={(usersResponse?.counts?.total || '0')?.toLocaleString()}
             subtitle="All registered customers"
             icon={<TeamOutlined />}
             accent={token.colorPrimary}
@@ -255,7 +277,7 @@ export default function DashboardPage() {
         <Col xs={24} md={12} xl={8}>
           <StatCard
             label="Active Users"
-            value={stats.active.toLocaleString()}
+            value={(usersResponse?.counts?.activeUsers || '0')?.toLocaleString()}
             subtitle="Currently active accounts"
             icon={<CheckCircleOutlined />}
             accent={token.colorSuccess}
@@ -266,7 +288,7 @@ export default function DashboardPage() {
         <Col xs={24} md={12} xl={8}>
           <StatCard
             label="Today's Registrations"
-            value={stats.today.toLocaleString()}
+            value={(usersResponse?.counts?.todayRegistrations || '0')?.toLocaleString()}
             subtitle="New users added today"
             icon={<UserAddOutlined />}
             accent={token.colorWarning}
@@ -288,7 +310,7 @@ export default function DashboardPage() {
         }
         extra={
           <Button type="link" onClick={() => navigate("/users")}>
-            View all
+            View All <ArrowRightOutlined />
           </Button>
         }
         style={{
@@ -297,13 +319,13 @@ export default function DashboardPage() {
         }}
         bodyStyle={{ padding: 0 }}
       >
-        {users.length ? (
+        {usersResponse?.data?.length ? (
           <Table
             columns={tableColumns}
-            dataSource={users.slice(0, 8)}
+            dataSource={usersResponse?.data?.slice(0, 10) || []}
             rowKey="id"
             pagination={false}
-            scroll={{ x: 760 }}
+            className="custom-table-rows"
             style={{ borderRadius: 6, overflow: "hidden" }}
           />
         ) : (
@@ -312,6 +334,20 @@ export default function DashboardPage() {
           </div>
         )}
       </Card>
+      <style>{`
+        .custom-table-rows .ant-table-tbody > tr > td {
+          padding-top: 0 !important;
+          padding-bottom: 0 !important;
+          height: 40px !important;
+        }
+
+        /* Optional: Target the header cells if you want them to be 40px too */
+        .custom-table-rows .ant-table-thead > tr > th {
+          padding-top: 0 !important;
+          padding-bottom: 0 !important;
+          height: 40px !important;
+        }
+      `}</style>
     </div>
   );
 }

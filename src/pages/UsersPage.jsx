@@ -11,6 +11,7 @@ import {
 import CommonTableLayout from "../components/CommonTableLayout";
 import { useUsersList } from "../hooks/useUsersList";
 import { useTrialExtend } from "../hooks/useTrialExtend";
+import { useQueryClient } from "@tanstack/react-query";
 
 const StatusIcon = ({ value }) =>
   Number(value) ? (
@@ -40,7 +41,7 @@ const formatDate = (value) => {
   }).format(date);
 };
 
-const formatDateAndTime = (value) => {
+export const formatDateAndTime = (value) => {
   if (!value) return "--";
 
   const date = new Date(value);
@@ -52,21 +53,32 @@ const formatDateAndTime = (value) => {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
   }).format(date);
 };
 
 export const renderDateWithHover = (value) => (
-  <Tooltip title={value || "N/A"}>
+  <Tooltip title={formatDateAndTime(value) || "N/A"}>
     <span style={{ cursor: 'pointer' }}>
       {formatDate(value)}
     </span>
   </Tooltip>
 );
 
+export const renderDateTimeWithHover = (value) => (
+  <Tooltip title={formatDateAndTime(value) || "N/A"}>
+    <span style={{ cursor: 'pointer' }}>
+      {formatDateAndTime(value)}
+    </span>
+  </Tooltip>
+);
+
+
 export default function UsersPage() {
   const { message, modal } = App.useApp();
   const [page, setPage] = useState(1);
   const [form] = Form.useForm();
+  const queryClient = useQueryClient();
   const [pageSize, setPageSize] = useState(25);
   const [emailSearch, setEmailSearch] = useState("");
   const [debouncedEmailSearch, setDebouncedEmailSearch] = useState("");
@@ -101,6 +113,11 @@ export default function UsersPage() {
     filters,
     sortOrder,
   });
+
+  useEffect(() => {
+    if (!usersResponse) return
+    queryClient.setQueryData(['title'], { title: 'Users', count: usersResponse?.counts?.total || '' })
+  }, [usersResponse])
 
   const users = usersResponse?.data || [];
   const pagination = usersResponse?.pagination || {};

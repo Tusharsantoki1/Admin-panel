@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Layout,
   AutoComplete,
@@ -10,42 +10,61 @@ import {
   App,
   Space,
   Typography,
+  Spin,
 } from "antd";
 import { SearchOutlined, BellOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
+import { useUsersList } from "../hooks/useUsersList"; // Import your hook
+import { toTitleCase } from "../utils/helpers";
+import { useTitleCount } from "../hooks/useTitleCount";
 
 const { Title } = Typography;
 const { Header } = Layout;
 
-export default function Topbar({ onSearch, results = [] }) {
+export default function Topbar() {
+  const { data: title } = useTitleCount();
   const [query, setQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const navigate = useNavigate();
   const { message } = App.useApp();
 
-  // Format results for AutoComplete dropdown
-  const options = results.slice(0, 6).map((user) => ({
+  // 1. Handle Debouncing (Logic from your UsersPage)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(query.trim());
+    }, 600); // 600ms delay for global search
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // 2. Fetch Data using the hook (Using the same logic as UsersPage)
+  const { data: usersResponse, isFetching } = useUsersList({
+    page: 1,
+    limit: 25, // Limit results for the dropdown
+    ...(debouncedSearch && { filters: { email: debouncedSearch } }),
+    sort: "desc",
+  });
+
+  const users = usersResponse?.data || [];
+
+  // 3. Format results for AutoComplete dropdown
+  const options = users.map((user) => ({
     value: user.id.toString(),
     label: (
-      <Flex vertical style={{ padding: "2px 0" }}>
-        <span style={{ fontWeight: 500, fontSize: 13 }}>
-          {user.first_name} {user.last_name}
+      <Flex align="center" style={{ padding: "4px 0", display: "flex", justifyContent: "space-between" }}>
+        <span style={{ fontWeight: 600, fontSize: 12, color: '#111' }}>
+          {toTitleCase(user.first_name)} {toTitleCase(user.last_name)}
         </span>
-        <span style={{ fontSize: 11, color: "#888" }}>
-          {user.email} | {user.phone_number}
+        <span style={{ fontSize: 11, color: "#888", marginRight: 8 }}>
+          {user.email} • {user.phone_number || "No Phone"}
         </span>
       </Flex>
     ),
-    user: user,
   }));
 
   const handleSelect = (val) => {
-    navigate(`/user/${val}`);
+    navigate(`/user/${val}`, { replace: true, state: { id: val } });
     setQuery("");
-  };
-
-  const handleSearch = (value) => {
-    setQuery(value);
-    if (onSearch) onSearch(value);
   };
 
   return (
@@ -57,20 +76,20 @@ export default function Topbar({ onSearch, results = [] }) {
         alignItems: "center",
         justifyContent: "space-between",
         borderBottom: "1px solid #f0f0f0",
-        height: "50px", // ✅ Strictly 50px height
-        lineHeight: "50px", // ✅ Vertically centers text/content
-        flexShrink: 0, // ✅ Prevents layout from squishing the header
+        height: "50px",
+        lineHeight: "50px",
+        flexShrink: 0,
       }}
     >
       {/* 1. LEFT SECTION */}
-      <Space>
+      <Space style={{ width: '200px', whiteSpace: 'nowrap' }}>
         <Title level={5} style={{ margin: 0 }}>
-          Customer
+          {title?.title}
         </Title>
-        <Badge count={50} color="#1890ff" />
+        {title?.count ? <Badge count={title?.count || 0} overflowCount={999} color="#1890ff" /> : null}
       </Space>
 
-      {/* 2. CENTER SECTION (Search Bar) */}
+      {/* 2. CENTER SECTION (Integrated Search) */}
       <div
         style={{
           flex: 2,
@@ -88,43 +107,37 @@ export default function Topbar({ onSearch, results = [] }) {
             maxWidth: 400,
           }}
           onSelect={handleSelect}
-          onSearch={handleSearch}
+          onSearch={(val) => setQuery(val)}
           value={query}
-          notFoundContent={query ? "No users found" : null}
+          notFoundContent={isFetching ? <Spin size="small" style={{ padding: 10 }} /> : "No users found"}
         >
           <Input
-            prefix={
-              <SearchOutlined style={{ height: "36px", marginRight: 6 }} />
-            }
-            placeholder="Search anything..."
+            prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+            placeholder="Search users by email..."
+            allowClear
             style={{
-              height: "36px",
-              borderRadius: 4,
-              backgroundColor: "#fefefe",
-              border: "1px solid #ccc",
+              height: "34px",
             }}
-            variant="filled"
           />
         </AutoComplete>
       </div>
 
-      {/* 3. RIGHT SECTION (Notifications & Profile) */}
+      {/* 3. RIGHT SECTION */}
       <Flex flex={1} justify="flex-end" align="center" gap="middle">
         <Badge count={3} size="small" offset={[-2, 2]}>
           <Button
             type="text"
             shape="circle"
-            icon={<BellOutlined style={{ fontSize: "16px", color: "#555" }} />}
-            onClick={() => message.success("3 new notifications")}
+            icon={<BellOutlined style={{ fontSize: "18px", color: "#555" }} />}
+            onClick={() => message.success("Notifications coming soon")}
           />
         </Badge>
 
         <Avatar
-          size={30} // ✅ Slightly smaller avatar to fit 50px header
+          size={32}
           style={{
             backgroundColor: "#534AB7",
             cursor: "pointer",
-            fontSize: 13,
             fontWeight: 600,
           }}
         >

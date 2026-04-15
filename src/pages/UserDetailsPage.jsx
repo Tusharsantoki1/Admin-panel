@@ -1,258 +1,374 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Button, Tag, Descriptions, Table, Divider, App, Flex } from "antd";
+import { Button, Tag, Descriptions, Table, App, Flex, Tooltip } from "antd";
 import {
   ArrowLeftOutlined,
-  EditOutlined,
-  DeleteOutlined,
   CheckCircleFilled,
   CloseCircleFilled,
 } from "@ant-design/icons";
+import { useUserdetail } from "../hooks/useUserdetail";
+import { useQueryClient } from "@tanstack/react-query";
+import { formatDateAndTime, renderDateTimeWithHover } from "./UsersPage";
 
-export default function UserDetailsPage({ users, setUsers }) {
+const VerifiedIcon = ({ value }) =>
+  value ? (
+    <CheckCircleFilled style={{ color: "#52c41a", fontSize: 13 }} />
+  ) : (
+    <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 13 }} />
+  );
+
+const Cell = ({ value, style = {} }) => {
+  const stringValue = value != null ? String(value) : "";
+
+  const isGMT = stringValue?.includes("GMT");
+
+  console.log(isGMT, value);
+
+  return (
+    <Tooltip title={isGMT ? formatDateAndTime(value) : value} placement="topLeft">
+      <span
+        style={{
+          display: "block",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          maxWidth: "100%",
+          ...style,
+        }}
+      >
+        {value != null && value !== ""
+          ? isGMT
+            ? formatDateAndTime(value)
+            : value
+          : "—"}
+      </span>
+    </Tooltip>
+  );
+};
+
+// 3. Change DI and BI to FUNCTIONS (not components)
+// This allows Ant Design to see Descriptions.Item as a direct child
+const renderDI = (label, value, span) => (
+  <Descriptions.Item label={label} span={span} key={label}>
+    <Cell value={value} />
+  </Descriptions.Item>
+);
+
+const renderBI = (label, value) => (
+  <Descriptions.Item label={label} key={label}>
+    <VerifiedIcon value={!!value} />
+  </Descriptions.Item>
+);
+
+export default function UserDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { modal, message } = App.useApp();
+  const queryClient = useQueryClient();
+  const { data: detail } = useUserdetail(Number(id));
 
-  const user = users?.find((u) => String(u.id) === id);
+  useEffect(() => {
+    queryClient.setQueryData(["title"], { title: "Global Search", count: "" });
+  }, []);
 
-  if (!user)
-    return (
-      <div style={{ padding: 32, color: "#888", fontSize: 14 }}>
-        User not found.
-      </div>
-    );
-
-  const handleDelete = () => {
-    modal.confirm({
-      title: "Delete User",
-      content: `Are you sure you want to delete ${user.first_name} ${user.last_name}?`,
-      okType: "danger",
-      okText: "Delete",
-      onOk: () => {
-        setUsers?.((prev) => prev.filter((u) => u.id !== user.id));
-        message.success("User deleted");
-        navigate(-1);
-      },
-    });
-  };
+  const userData = detail?.user;
+  const brokers = detail?.brokers || [];
+  const paymentHistory = detail?.paymentHistory || [];
+  const plan = detail?.plan || {};
+  const settings = detail?.settings || {};
 
   const VerifiedIcon = ({ value }) =>
     value ? (
-      <CheckCircleFilled style={{ color: "#52c41a" }} />
+      <CheckCircleFilled style={{ color: "#52c41a", fontSize: 13 }} />
     ) : (
-      <CloseCircleFilled style={{ color: "#ff4d4f" }} />
+      <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 13 }} />
     );
 
+  // Shared Descriptions props — key: contentStyle maxWidth:0 forces truncation inside grid cells
   const descProps = {
     size: "small",
     bordered: true,
-    column: { xxl: 4, xl: 3, lg: 3, md: 2, sm: 1, xs: 1 },
+    column: { xxl: 4, xl: 4, lg: 4, md: 2, sm: 2, xs: 1 },
     labelStyle: {
       fontWeight: 500,
       color: "#555",
       fontSize: 12,
       background: "#fafafa",
       width: 140,
+      minWidth: 140,
+      maxWidth: 140,
+      whiteSpace: "nowrap",
+      verticalAlign: "middle",
+      padding: "6px 10px",
     },
-    contentStyle: { fontSize: 13, color: "#1a1a1a" },
+    contentStyle: {
+      fontSize: 12,
+      color: "#1a1a1a",
+      overflow: "hidden",
+      verticalAlign: "middle",
+      padding: "6px 10px",
+    },
   };
 
-  // Dummy transaction history rows
-  const txHistory = user.transactions || [
-    {
-      key: 1,
-      date: user.created_at || "--",
-      status: "Success",
-      type: "Subscription",
-      remark: "Trial",
-    },
+  // Shorthand for a plain-text item with ellipsis
+
+  let brokerAddon = [];
+  try { brokerAddon = JSON.parse(userData?.broker_addon || "[]"); } catch (_) { }
+
+  const isPlanActive =
+    userData?.expiryDate ? new Date(userData?.expiryDate) > new Date() : null;
+
+  let featureList = [];
+  try { featureList = JSON.parse(plan?.featureLists || "[]"); } catch (_) { }
+
+  // ── Broker table columns ──
+  const brokerColumns = [
+    { title: "Sr.", key: "sr", width: 45, fixed: "left", render: (_, __, i) => i + 1 },
+    { title: "Broker", dataIndex: "brokerName", width: 90, ellipsis: true, render: (v) => <b>{v}</b> },
+    { title: "Server", dataIndex: "brokerServer", width: 110, ellipsis: true },
+    { title: "User ID", dataIndex: "interactiveUserId", width: 90, ellipsis: true },
+    { title: "Client Code", dataIndex: "client_code", width: 90, ellipsis: true, render: (v) => v || "—" },
+    { title: "Role", dataIndex: "role", width: 80, render: (v) => <Tag color={v === "primary" ? "blue" : "default"} style={{ fontSize: 11 }}>{v}</Tag> },
+    { title: "Multiplier", dataIndex: "multiplier", width: 80, align: "center" },
+    { title: "Copy Trade", dataIndex: "copyTradeStatus", width: 85, align: "center", render: (v) => <VerifiedIcon value={v === 1} /> },
+    { title: "Is Client", dataIndex: "isClient", width: 75, align: "center", render: (v) => <VerifiedIcon value={v === 1} /> },
+    { title: "Is Dealer", dataIndex: "isDealer", width: 75, align: "center", render: (v) => <VerifiedIcon value={v === 1} /> },
+    { title: "Investor", dataIndex: "isInvestorClient", width: 70, align: "center", render: (v) => <VerifiedIcon value={v === 1} /> },
+    { title: "Rev. Copy", dataIndex: "isReverseCopy", width: 80, align: "center", render: (v) => <VerifiedIcon value={v === 1} /> },
+    { title: "Dir. Copy", dataIndex: "isDirectCopy", width: 75, align: "center", render: (v) => <VerifiedIcon value={v === 1} /> },
+    { title: "Bal. Client", dataIndex: "isBalanceForClient", width: 85, align: "center", render: (v) => <VerifiedIcon value={v === 1} /> },
+    { title: "Binary Upd.", dataIndex: "isBinaryUpdated", width: 90, align: "center", render: (v) => <VerifiedIcon value={v === 1} /> },
+    { title: "Rate Limit", dataIndex: "rate_limit", width: 80, align: "center" },
+    { title: "SL", dataIndex: "sl", width: 55, align: "center" },
+    { title: "Target", dataIndex: "target", width: 65, align: "center" },
+    { title: "Nifty ×", dataIndex: "nifty_multiplier", width: 65, align: "center", render: (v) => v ?? "—" },
+    { title: "Sensex ×", dataIndex: "sensex_multiplier", width: 70, align: "center", render: (v) => v ?? "—" },
+    { title: "Interactive API Key", dataIndex: "InteractiveApiKey", width: 140, ellipsis: true, render: (v) => v || "—" },
+    { title: "Interactive Secret", dataIndex: "InteractiveSecretKey", width: 140, ellipsis: true, render: (v) => v || "—" },
+    { title: "Interactive URL", dataIndex: "InteractiveUrl", width: 180, ellipsis: true, render: (v) => v || "—" },
+    { title: "Market API Key", dataIndex: "MarketApiKey", width: 130, ellipsis: true, render: (v) => v || "—" },
+    { title: "Market Secret", dataIndex: "MarketSecretKey", width: 130, ellipsis: true, render: (v) => v || "—" },
+    { title: "Market URL", dataIndex: "MarketUrl", width: 180, ellipsis: true, render: (v) => v || "—" },
+    { title: "Market User ID", dataIndex: "marketUserId", width: 110, ellipsis: true, render: (v) => v || "—" },
+    { title: "Tag", dataIndex: "tag", width: 70, ellipsis: true, render: (v) => v || "—" },
+    { title: "Deleted", dataIndex: "deleted", width: 65, align: "center", render: (v) => <VerifiedIcon value={v === 1} /> },
+    { title: "Created At", dataIndex: "createdAt", width: 175, render: renderDateTimeWithHover, ellipsis: true },
+    { title: "Updated At", dataIndex: "updatedAt", width: 175, render: renderDateTimeWithHover, ellipsis: true },
   ];
 
-  const txColumns = [
-    { title: "Sr. No.", key: "sr", width: 70, render: (_, __, i) => i + 1 },
-    { title: "Date", dataIndex: "date", width: 180 },
-    {
-      title: "Transaction Status",
-      dataIndex: "status",
-      width: 140,
-      render: (v) => (
-        <b style={{ color: v === "Success" ? "#52c41a" : "#ff4d4f" }}>{v}</b>
-      ),
-    },
-    { title: "Transaction Type", dataIndex: "type", width: 160 },
-    { title: "Remark", dataIndex: "remark" },
+  // ── Payment history table columns ──
+  const paymentColumns = [
+    { title: "Sr.", key: "sr", width: 45, fixed: "left", render: (_, __, i) => i + 1 },
+    { title: "Order ID", dataIndex: "order_id", width: 160, ellipsis: true, render: (v) => v || "—" },
+    { title: "Payment ID", dataIndex: "paymentId", width: 160, ellipsis: true, render: (v) => v || "—" },
+    { title: "Status", dataIndex: "paymentStatus", width: 90, render: (v) => <b style={{ color: v === "captured" ? "#52c41a" : "#ff4d4f" }}>{v || "—"}</b> },
+    { title: "Method", dataIndex: "paymentMethod", width: 75, render: (v) => v ? <Tag style={{ fontSize: 11 }}>{v}</Tag> : "—" },
+    { title: "Plan ID", dataIndex: "planId", width: 65, align: "center" },
+    { title: "Brokers", dataIndex: "brokers", width: 65, align: "center", render: (v) => v ?? "—" },
+    { title: "Period", dataIndex: "subscriptionPeriod", width: 80, ellipsis: true },
+    { title: "Sub. Days", dataIndex: "subscriptionDays", width: 80, align: "center", render: (v) => v ?? "—" },
+    { title: "Offer Type", dataIndex: "offerType", width: 85, ellipsis: true, render: (v) => v || "—" },
+    { title: "Coupon", dataIndex: "couponCode", width: 100, render: (v) => v ? <Tag color="purple" style={{ fontSize: 11 }}>{v}</Tag> : "—" },
+    { title: "Coupon Val", dataIndex: "couponValue", width: 85, align: "right", render: (v) => v ? `₹${v}` : "—" },
+    { title: "Sub Total", dataIndex: "subTotalAmount", width: 85, align: "right", render: (v) => `₹${v}` },
+    { title: "Discount", dataIndex: "discountAmount", width: 85, align: "right", render: (v) => `₹${v}` },
+    { title: "After Disc.", dataIndex: "afterDiscountAmount", width: 90, align: "right", render: (v) => `₹${v}` },
+    { title: "Tax", dataIndex: "taxAmount", width: 65, align: "right", render: (v) => `₹${v}` },
+    { title: "Total", dataIndex: "totalAmount", width: 75, align: "right", render: (v) => <b>₹{v}</b> },
+    { title: "Txn Type", dataIndex: "transactionType", width: 90, ellipsis: true, render: (v) => v || "—" },
+    { title: "Activation Date", dataIndex: "activationDate", width: 175, render: renderDateTimeWithHover, ellipsis: true },
+    { title: "Expiry Date", dataIndex: "expiryDate", width: 175, render: renderDateTimeWithHover, ellipsis: true },
+    { title: "Addon Days", dataIndex: "addonDays", width: 85, align: "center", render: (v) => v ?? "—" },
+    { title: "Created At", dataIndex: "created_at", width: 175, render: renderDateTimeWithHover, ellipsis: true },
+    { title: "Updated At", dataIndex: "updated_at", width: 175, render: renderDateTimeWithHover, ellipsis: true },
   ];
 
   return (
-    <div
-      style={{
-        padding: "4px 10px",
-        minHeight: "100vh",
-      }}
-    >
+    <div style={{ padding: "4px 10px", minHeight: "100vh" }}>
+
       {/* ── Back ── */}
       <Flex
         justify="space-between"
         align="center"
-        style={{
-          padding: "4px 20px",
-          height: "40px",
-          borderBottom: "1px solid #f0f0f0",
-          flexShrink: 0,
-        }}
+        style={{ padding: "4px 20px", height: 40, borderBottom: "1px solid #f0f0f0", flexShrink: 0 }}
       >
         <Button
           type="text"
           icon={<ArrowLeftOutlined />}
           onClick={() => navigate(-1)}
-          style={{
-            marginBottom: 12,
-            color: "#003eb3",
-            fontWeight: 500,
-            paddingLeft: 0,
-          }}
+          style={{ marginBottom: 12, color: "#003eb3", fontWeight: 500, paddingLeft: 0 }}
         >
           Back
         </Button>
       </Flex>
+
       {/* ── CUSTOMER INFORMATION ── */}
-      <SectionCard
-        title="Customer Information"
-        statusLabel={user.status}
-        actions={
-          <>
-            {/* <Button
-              size="small"
-              icon={<EditOutlined />}
-              style={{ borderColor: "#003eb3", color: "#003eb3" }}
-            >
-              Edit
-            </Button> */}
-            <Button
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={handleDelete}
-            >
-              Delete
-            </Button>
-          </>
-        }
-      >
+      <SectionCard title="Customer Information" statusLabel={userData?.status}>
         <Descriptions {...descProps}>
-          <Descriptions.Item label="Name">
-            {user.first_name} {user.last_name}
-          </Descriptions.Item>
+          {renderDI("User ID", userData?.id)}
+          {renderDI("First Name", userData?.first_name)}
+          {renderDI("Last Name", userData?.last_name)}
           <Descriptions.Item label="Email">
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {user.email}
-              <VerifiedIcon value={user.isEmailVerified} />
+            <span style={{ display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
+              <Cell value={userData?.email} style={{ flex: "1 1 0", minWidth: 0 }} />
+              <VerifiedIcon value={userData?.isEmailVerified === 1} />
             </span>
           </Descriptions.Item>
-          <Descriptions.Item label="Mobile No">
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {user.phone_number}
-              <VerifiedIcon value={user.isMobileVerified} />
+          <Descriptions.Item label="Phone">
+            <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <Cell value={userData?.phone_number} />
+              <VerifiedIcon value={userData?.isMobileVerified === 1} />
             </span>
           </Descriptions.Item>
-          <Descriptions.Item label="Created Date">
-            {user.created_at || "—"}
+          <Descriptions.Item label="Role">
+            <Tag color="blue" style={{ fontSize: 11 }}>{userData?.role || "—"}</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="Source">—</Descriptions.Item>
-          <Descriptions.Item label="User Role">
-            <Tag color="blue" style={{ fontSize: 11 }}>
-              {user.role}
-            </Tag>
+          <Descriptions.Item label="Status">
+            <span style={{ fontWeight: 600, color: userData?.status === "active" ? "#52c41a" : "#ff4d4f" }}>
+              {userData?.status || "—"}
+            </span>
           </Descriptions.Item>
-          <Descriptions.Item label="Inquiry Date">—</Descriptions.Item>
-          <Descriptions.Item label="User Category">—</Descriptions.Item>
-          <Descriptions.Item label="Sales Person">—</Descriptions.Item>
-          <Descriptions.Item label="Registration Date">—</Descriptions.Item>
-          <Descriptions.Item label="App Version">—</Descriptions.Item>
-          <Descriptions.Item label="ICAIMemberId">—</Descriptions.Item>
+          {renderBI("Is Active", userData?.isActive === 1)}
+          {renderBI("Is Purchasable", userData?.isPurchasable === 1)}
+          {renderBI("Waitlist Joined", userData?.waitlist_joined === 1)}
+          {renderDI("Permission ID", userData?.permissionId)}
+          {renderDI("Plan ID", userData?.planId)}
+          {renderDI("Group", userData?.group)}
+          {renderDI("OTP", userData?.otp)}
+          {renderDI("OTP Expiry", userData?.otp_expiration)}
+          {renderDI("Send Email Limit", userData?.send_email_limit)}
+          {renderDI("Trial Date", userData?.trialDate)}
+          {renderDI("Trial Expiry", userData?.trialExpiryDate)}
+          {renderDI("Created At", userData?.created_at)}
+          {renderDI("Updated At", userData?.updated_at)}
         </Descriptions>
       </SectionCard>
 
       {/* ── SUBSCRIPTION DETAIL ── */}
       <SectionCard title="Subscription Detail">
         <Descriptions {...descProps}>
-          <Descriptions.Item label="Activation Date">
-            {user.activateDate || "—"}
-          </Descriptions.Item>
+          {renderDI("Plan Name", plan?.name)}
+          {renderDI("Plan Code", plan?.code)}
+          {renderDI("Plan Type", plan?.planType)}
+          {renderDI("Plan Price", plan?.price ? `₹${plan?.price}` : null)}
+          {renderDI("Sub. Period", plan?.subscriptionPeriod)}
+          {renderDI("Broker Number", plan?.brokerNumber)}
+          {renderBI("Is Active", plan?.isActive === 1)}
+          {renderDI("Description", plan?.description)}
+          {renderDI("Activation Date", userData?.activateDate)}
+          {renderDI("Expiry Date", userData?.expiryDate)}
+          {renderDI("Renew Date", userData?.renewDate)}
           <Descriptions.Item label="Plan Status">
-            <b style={{ color: "#ff4d4f" }}>Expired</b>
+            {isPlanActive === null ? "—" : (
+              <b style={{ color: isPlanActive ? "#52c41a" : "#ff4d4f" }}>
+                {isPlanActive ? "Active" : "Expired"}
+              </b>
+            )}
           </Descriptions.Item>
-          <Descriptions.Item label="Expiry Date">
-            {user.expiryDate || "—"}
+          {renderDI("Active Broker", userData?.active_broker)}
+          {renderDI("GST No", userData?.gstNo)}
+          {renderDI("Plan Created At", plan?.created_at)}
+          {renderDI("Plan Updated At", plan?.updated_at)}
+          <Descriptions.Item label="Broker Addon" span={4}>
+            <Cell
+              value={
+                brokerAddon.length > 0
+                  ? brokerAddon.map((b) => `Brokers: ${b.brokers} | Days: ${b.days} | Plan: ${b.planId} | Expiry: ${b.expiryDate}`).join("  •  ")
+                  : null
+              }
+            />
           </Descriptions.Item>
-          <Descriptions.Item label="Plan Name">
-            {user.planId || "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Renew Date">—</Descriptions.Item>
-          <Descriptions.Item label="Plan Family Name">
-            {user.planId || "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Company Credits">
-            Unlimited
-          </Descriptions.Item>
-          <Descriptions.Item label="User Credits">2 / 0</Descriptions.Item>
-          <Descriptions.Item label="Client Credits">
-            Unlimited
-          </Descriptions.Item>
-          <Descriptions.Item label="GST Credits">Unlimited</Descriptions.Item>
-          <Descriptions.Item label="Group">
-            {user.group || "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Permission ID">
-            {user.permissionId || "—"}
+          <Descriptions.Item label="Feature List" span={4}>
+            <Cell value={featureList.join(" • ")} />
           </Descriptions.Item>
         </Descriptions>
       </SectionCard>
 
-      {/* ── TRANSACTION DETAIL ── */}
-      <SectionCard title="Transaction Detail">
-        <Descriptions {...descProps} style={{ marginBottom: 16 }}>
-          <Descriptions.Item label="Organization">
-            {user.city || "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="GST Number">—</Descriptions.Item>
-          <Descriptions.Item label="User Code">—</Descriptions.Item>
-          <Descriptions.Item label="Referral Code">—</Descriptions.Item>
-          <Descriptions.Item label="Address">
-            {user.city || "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Pin Code">—</Descriptions.Item>
-          <Descriptions.Item label="City">{user.city || "—"}</Descriptions.Item>
-          <Descriptions.Item label="State">
-            {user.state || "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Country">
-            {user.country || "—"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Broker Addon">
-            {user.broker_addon ? "Yes" : "No"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Active Broker">
-            {user.active_broker ? "Yes" : "No"}
-          </Descriptions.Item>
+      {/* ── LOCATION & ACCOUNT DETAIL ── */}
+      <SectionCard title="Location & Account Detail">
+        <Descriptions {...descProps}>
+          {renderDI("City", userData?.city)}
+          {renderDI("State", userData?.state)}
+          {renderDI("Country", userData?.country)}
+          {renderDI("GST No", userData?.gstNo)}
         </Descriptions>
+      </SectionCard>
 
-        <Divider
-          orientation="left"
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: "#333",
-            margin: "12px 0",
-          }}
-        >
-          Transaction History
-        </Divider>
+      {/* ── USER SETTINGS ── */}
+      <SectionCard title="User Settings">
+        <Descriptions {...descProps}>
+          {renderDI("Settings ID", settings?.id)}
+          {renderDI("Symbol", settings?.symbol)}
+          {renderDI("Theme", settings?.theme_mode)}
+          {renderDI("Product Type", settings?.productType)}
+          {renderDI("Open Order Type", settings?.open_order_type)}
+          {renderBI("Paper Mode", settings?.isPaperMode === 1)}
+          {renderBI("Net Wise", settings?.isNetWise === 1)}
+          {renderBI("Lot Wise Add", settings?.isLotWiseAdd === 1)}
+          {renderBI("Lot Wise Pos.", settings?.isLotWisePositions === 1)}
+          {renderBI("Full Tbl Scroll", settings?.isFullTableScroll === 1)}
+          {renderBI("Sell First", settings?.isSellFirst === 1)}
+          {renderBI("Is Hedge", settings?.is_hedge === 1)}
+          {renderBI("Is Trailing", settings?.is_trailing === 1)}
+          {renderBI("Auto Reconcile", settings?.autoReconcile === 1)}
+          {renderBI("Auto Pend. Rec.", settings?.autoPendingReconcile === 1)}
+          {renderDI("Reconcile After", settings?.reconcileAfter)}
+          {renderDI("Nifty Def. Qty", settings?.nifty_default_qty)}
+          {renderDI("Sensex Def. Qty", settings?.sensex_default_qty)}
+          {renderDI("Lot Multiplier", settings?.lot_multiplier)}
+          {renderDI("Buy Multiplier", settings?.buy_multiplier)}
+          {renderDI("Sell Multiplier", settings?.sell_multiplier)}
+          {renderDI("Max Quantity", settings?.max_quantity)}
+          {renderDI("Max Common Qty", settings?.max_common_qty)}
+          {renderDI("Max Nifty Qty", settings?.max_nifty_qty)}
+          {renderDI("Max Sensex Qty", settings?.max_sensex_qty)}
+          {renderDI("Max Strike", settings?.max_strike || "—")}
+          {renderDI("Strike Range", settings?.strike_range)}
+          {renderDI("CEPE Diff", settings?.cepeDiff)}
+          {renderDI("SL Type", settings?.sl_type)}
+          {renderDI("MTM SL Type", settings?.mtm_sl_type)}
+          {renderDI("MTM Target Type", settings?.mtm_target_type)}
+          {renderDI("Target Type", settings?.target_type)}
+          {renderDI("Predefined SL", settings?.predefined_sl)}
+          {renderDI("Predefined Target", settings?.predefined_target)}
+          {renderDI("Pred. MTM SL", settings?.predefined_mtm_sl)}
+          {renderDI("Pred. MTM Target", settings?.predefined_mtm_target)}
+          {renderDI("SL Quantity", settings?.sl_quantity)}
+          {renderDI("Target Quantity", settings?.target_quantity)}
+          {renderBI("SL Broker", settings?.sl_broker === 1)}
+          {renderDI("Trail MTM Amt", settings?.trail_mtm_amount)}
+          {renderDI("Trail MTM Start", settings?.trail_mtm_start_point)}
+          {renderDI("Trail SL Amt", settings?.trail_sl_amount)}
+          {renderDI("Trail SL Start", settings?.trail_sl_start_point)}
+          {renderDI("Limit Price", settings?.limit_price)}
+          {renderDI("Rate Limit", settings?.rate_limit)}
+          {renderDI("Retry Order", settings?.retryOrder)}
+          {renderDI("Retry Self Trade", settings?.retrySelfTradeOrder)}
+          {renderDI("Order Cooldown", settings?.order_action_cooldown)}
+          {renderDI("Exit All Cooldown", settings?.exit_all_cooldown)}
+          {renderDI("Copy Delay", settings?.copyDelay)}
+          {renderDI("Hedge Interval", settings?.hedge_interval)}
+          {renderBI("Hedge On Pos Add", settings?.hedge_on_position_add === 1)}
+          {renderDI("Nifty Interval", settings?.nifty_interval)}
+          {renderDI("BankNifty Intv.", settings?.bankNifty_interval)}
+          {renderDI("Sensex Interval", settings?.sensex_interval)}
+          {renderDI("Nifty Hedge R/O", settings?.nifty_hedge_roundoff)}
+          {renderDI("Sensex Hedge R/O", settings?.sensex_hedge_roundoff)}
+          {renderDI("Initial Move To", settings?.initial_move_to)}
+          {renderDI("MoveTo Org Intv.", settings?.moveToOrginalInterval)}
+          {renderDI("Mkt Limit Modify", settings?.market_limit_modify_count)}
+          {renderDI("Order Slice Lot", settings?.order_slice_lot)}
+          {renderDI("Quantity Mode", settings?.quantity_mode)}
+          {renderBI("Disable Primary", settings?.disable_primary === 1)}
+          {renderBI("System Notif.", settings?.systemNotifications === 1)}
+          {renderBI("Deleted", !!settings?.deleted)}
+        </Descriptions>
+      </SectionCard>
 
+      {/* ── BROKER DETAIL ── */}
+      <SectionCard title="Broker Detail">
         <Table
-          columns={txColumns}
-          dataSource={txHistory}
+          columns={brokerColumns}
+          dataSource={brokers.map((b) => ({ ...b, key: b.id }))}
           rowKey="key"
           size="small"
           bordered
@@ -262,18 +378,49 @@ export default function UserDetailsPage({ users, setUsers }) {
         />
       </SectionCard>
 
+      {/* ── TRANSACTION DETAIL ── */}
+      <SectionCard title="Transaction Detail">
+        <Table
+          columns={paymentColumns}
+          dataSource={paymentHistory.map((p) => ({ ...p, key: p.id }))}
+          rowKey="key"
+          size="small"
+          bordered
+          pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} records` }}
+          scroll={{ x: "max-content" }}
+          style={{ fontSize: 12 }}
+        />
+      </SectionCard>
+
       <style>{`
+        /* ── Descriptions: uniform single-line rows ── */
         .ant-descriptions-item-label {
           font-size: 12px !important;
           font-weight: 500 !important;
+          white-space: nowrap !important;
+          vertical-align: middle !important;
+          padding: 6px 10px !important;
         }
         .ant-descriptions-item-content {
-          font-size: 13px !important;
+          font-size: 12px !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+          max-width: 0 !important;
+          vertical-align: middle !important;
+          padding: 6px 10px !important;
         }
+        /* ── Table header/body ── */
         .ant-table-thead > tr > th {
           background: #f5f7fa !important;
           font-size: 12px !important;
-          color: #888 !important;
+          color: #666 !important;
+          white-space: nowrap !important;
+          padding: 6px 8px !important;
+        }
+        .ant-table-tbody > tr > td {
+          font-size: 12px !important;
+          padding: 5px 8px !important;
         }
       `}</style>
     </div>
@@ -292,7 +439,6 @@ function SectionCard({ title, statusLabel, actions, children }) {
         overflow: "hidden",
       }}
     >
-      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -303,37 +449,16 @@ function SectionCard({ title, statusLabel, actions, children }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div
-            style={{
-              width: 3,
-              height: 16,
-              background: "#003eb3",
-              borderRadius: 2,
-            }}
-          />
-          <span style={{ fontWeight: 600, fontSize: 14, color: "#1a1a1a" }}>
-            {title}
-          </span>
+          <div style={{ width: 3, height: 16, background: "#003eb3", borderRadius: 2 }} />
+          <span style={{ fontWeight: 600, fontSize: 14, color: "#1a1a1a" }}>{title}</span>
           {statusLabel && (
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: statusLabel === "Active" ? "#52c41a" : "#ff4d4f",
-              }}
-            >
+            <span style={{ fontSize: 12, fontWeight: 600, color: statusLabel === "active" ? "#52c41a" : "#ff4d4f" }}>
               {statusLabel}
             </span>
           )}
         </div>
-        {actions && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {actions}
-          </div>
-        )}
+        {actions && <div style={{ display: "flex", gap: 8, alignItems: "center" }}>{actions}</div>}
       </div>
-
-      {/* Body */}
       <div style={{ padding: "14px 16px" }}>{children}</div>
     </div>
   );

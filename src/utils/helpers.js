@@ -23,6 +23,21 @@ export const getUserData = () => {
   };
 };
 
+export const noop = async () => {
+  return new Promise(() => { });
+};
+
+export const toTitleCase = (value) => {
+  if (!value) return "--";
+
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 export function exportCSV(data, filename = 'export.csv') {
   if (!data.length) return false;
   const keys = Object.keys(data[0]);

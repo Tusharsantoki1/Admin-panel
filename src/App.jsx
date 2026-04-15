@@ -41,21 +41,11 @@ const { Content } = Layout;
 export default function App() {
   const location = useLocation();
   const { access_token } = getUserData();
-  const [users, setUsers] = useState(initialUsers);
-  const [coupons, setCoupons] = useState(initialCoupons);
-  const [plans, setPlans] = useState(initialPlans);
   const [permissions, setPermissions] = useState(initialPermissions);
-  const [globalSearch, setGlobalSearch] = useState("");
 
   const PrivateRoute = ({ access_token }) => {
     return access_token ? <Outlet /> : <Navigate to="/login" replace />;
   };
-
-  const filteredUsers = users.filter((user) =>
-    Object.values(user).some((val) =>
-      String(val).toLowerCase().includes(globalSearch.toLowerCase()),
-    ),
-  );
 
   const isLoginPage = location.pathname === "/login";
 
@@ -76,7 +66,7 @@ export default function App() {
               <Sidebar />
 
               <Layout>
-                <Topbar onSearch={setGlobalSearch} results={filteredUsers} />
+                <Topbar />
 
                 <Content
                   style={{
@@ -89,26 +79,26 @@ export default function App() {
                     <Route element={<PrivateRoute access_token={access_token} />}>
                       <Route
                         path="/user/:id"
-                        element={<UserDetailsPage users={users} />}
+                        element={<UserDetailsPage />}
                       />
-                      <Route path="/" element={<DashboardPage users={users} />} />
+                      <Route path="/" element={<DashboardPage />} />
                       <Route
                         path="/users"
-                        element={<UsersPage users={users} setUsers={setUsers} />}
+                        element={<UsersPage />}
                       />
                       <Route
                         path="/coupon"
                         element={
-                          <CouponPage coupons={coupons} setCoupons={setCoupons} />
+                          <CouponPage />
                         }
                       />
                       <Route
                         path="/plan"
-                        element={<PlanPage plans={plans} setPlans={setPlans} />}
+                        element={<PlanPage />}
                       />
                       <Route
                         path="/History"
-                        element={<History users={users} setUsers={setUsers} />}
+                        element={<History />}
                       />
                       <Route
                         path="/permission"

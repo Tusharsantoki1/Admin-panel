@@ -1,70 +1,90 @@
-import React from "react";
-import { Tag, Dropdown, App, Tooltip } from "antd";
+import React, { useEffect } from "react";
+import { Tag, Tooltip, Badge } from "antd";
 import {
-  DeleteOutlined,
-  MoreOutlined,
   CheckCircleFilled,
   CloseCircleFilled,
 } from "@ant-design/icons";
 import CommonTableLayout from "../components/CommonTableLayout";
 import { usePlansList } from "../hooks/usePlansList";
+import { renderDateWithHover } from "./UsersPage";
+import { useQueryClient } from "@tanstack/react-query";
 
-export default function PlanPage({ plans, setPlans }) {
-  const { message, modal } = App.useApp();
-  // Note: Ensure 'plans' passed from parent matches the 'data' structure provided
+export default function PlanPage() {
   const { data } = usePlansList();
+  const queryClient = useQueryClient();
 
-  const handleDelete = (id) => {
-    modal.confirm({
-      title: "Confirm Delete",
-      okType: "danger",
-      onOk: () => {
-        setPlans((prev) => prev.filter((p) => p.id !== id));
-        message.success("Plan deleted");
-      },
-    });
-  };
-
-  const toggleStatus = (record) => {
-    setPlans((prev) =>
-      prev.map((p) =>
-        p.id === record?.id
-          ? { ...p, isActive: p.isActive === 1 ? 0 : 1 }
-          : p,
-      ),
-    );
-    message.success("Status updated");
-  };
-
+  useEffect(() => {
+    if (!data) return
+    queryClient.setQueryData(['title'], { title: 'Plans', count: data?.data?.length || '' })
+  }, [data])
   const columns = [
     {
       title: "Name",
       dataIndex: "name",
       width: 150,
-      render: (v, record) => (
-        <div>
-          <b style={{ display: "block" }}>{v}</b>
-          <span style={{ fontSize: "10px", color: "#999" }}>{record?.code}</span>
-        </div>
-      ),
+      fixed: "left",
+      render: (v) => <b>{v}</b>,
+      sorter: (a, b) => a.name.localeCompare(b.name),
+    },
+    {
+      title: "Code",
+      dataIndex: "code",
+      width: 100,
+      render: (v) => <Tag color="geekblue">{v}</Tag>,
     },
     {
       title: "Price",
       dataIndex: "price",
-      width: 100,
-      render: (v) => <b>₹{parseFloat(v).toLocaleString()}</b>,
+      width: 120,
+      render: (v) => <b style={{ color: "#1677ff" }}>₹{parseFloat(v).toLocaleString()}</b>,
+      sorter: (a, b) => parseFloat(a.price) - parseFloat(b.price),
     },
     {
       title: "Type",
       dataIndex: "planType",
-      width: 90,
-      render: (v) => <Tag color={v === "addon" ? "orange" : "purple"}>{v?.toUpperCase()}</Tag>,
+      width: 100,
+      render: (v) => (
+        <Tag color={v === "addon" ? "orange" : "purple"}>
+          {v?.toUpperCase()}
+        </Tag>
+      ),
     },
     {
-      title: "Billing",
+      title: "Billing Period",
       dataIndex: "subscriptionPeriod",
-      width: 110,
+      width: 120,
       render: (v) => <Tag color="blue">{v}</Tag>,
+    },
+    {
+      title: "Brokers",
+      dataIndex: "brokerNumber",
+      width: 100,
+      align: "center",
+    },
+    {
+      title: "Status",
+      dataIndex: "isActive",
+      width: 110,
+      render: (v) => (
+        <span>
+          {v === 1 ? (
+            <Tag color="green" icon={<CheckCircleFilled />}>Active</Tag>
+          ) : (
+            <Tag color="error" icon={<CloseCircleFilled />}>Inactive</Tag>
+          )}
+        </span>
+      ),
+    },
+    {
+      title: "Description",
+      dataIndex: "description",
+      width: 200,
+      ellipsis: true,
+      render: (v) => (
+        <Tooltip title={v}>
+          <span style={{ color: "#666", fontSize: 12 }}>{v}</span>
+        </Tooltip>
+      ),
     },
     {
       title: "Features",
@@ -87,58 +107,19 @@ export default function PlanPage({ plans, setPlans }) {
       },
     },
     {
-      title: "Created",
+      title: "Created At",
       dataIndex: "created_at",
       width: 180,
-      render: (v) => <span style={{ color: "#888", fontSize: 12 }}>{v}</span>,
+      sorter: (a, b) => new Date(a.created_at) - new Date(b.created_at),
+      render: (v) => renderDateWithHover(v),
     },
     {
-      title: "Status",
-      dataIndex: "isActive",
-      width: 100,
-      render: (v, record) => (
-        <span
-          onClick={() => toggleStatus(record)}
-          style={{ cursor: "pointer" }}
-        >
-          {v === 1 ? (
-            <>
-              <CheckCircleFilled style={{ color: "#52c41a", marginRight: 4 }} />
-              <b style={{ color: "#52c41a" }}>Active</b>
-            </>
-          ) : (
-            <>
-              <CloseCircleFilled style={{ color: "#ff4d4f", marginRight: 4 }} />
-              <b style={{ color: "#ff4d4f" }}>Inactive</b>
-            </>
-          )}
-        </span>
-      ),
+      title: "Updated At",
+      dataIndex: "updated_at",
+      width: 180,
+      sorter: (a, b) => new Date(a.updated_at) - new Date(b.updated_at),
+      render: (v) => renderDateWithHover(v),
     },
-    // {
-    //   title: "Action",
-    //   key: "action",
-    //   fixed: "right",
-    //   width: 70,
-    //   align: "center",
-    //   render: (_, record) => (
-    //     <Dropdown
-    //       menu={{
-    //         items: [
-    //           {
-    //             key: "delete",
-    //             label: "Delete",
-    //             icon: <DeleteOutlined />,
-    //             danger: true,
-    //             onClick: () => handleDelete(record?.id),
-    //           },
-    //         ],
-    //       }}
-    //     >
-    //       <MoreOutlined style={{ cursor: "pointer", fontSize: 16 }} />
-    //     </Dropdown>
-    //   ),
-    // },
   ];
 
   return (
@@ -146,18 +127,22 @@ export default function PlanPage({ plans, setPlans }) {
       columns={columns}
       dataSource={data?.data || []}
       rowKey="id"
-      searchFields={["name", "code", "subscriptionPeriod", "planType"]}
-      searchPlaceholder="Search by name, code or period..."
-      exportFilename="plans_export"
+      searchFields={["name", "code", "subscriptionPeriod", "planType", "description"]}
+      searchPlaceholder="Search by name, code, type or period..."
+      exportFilename="subscription_plans"
       exportHeaders={[
         "ID",
         "Name",
         "Code",
         "Price",
-        "Type",
-        "Period",
+        "Plan Type",
+        "Subscription Period",
+        "Brokers",
         "Status",
+        "Description",
+        "Features",
         "Created At",
+        "Updated At",
       ]}
       exportMapper={(p) => [
         p.id,
@@ -166,8 +151,12 @@ export default function PlanPage({ plans, setPlans }) {
         p.price,
         p.planType,
         p.subscriptionPeriod,
+        p.brokerNumber,
         p.isActive === 1 ? "Active" : "Inactive",
+        p.description,
+        p.featureLists, // Exports raw JSON string of features
         p.created_at,
+        p.updated_at,
       ]}
     />
   );
