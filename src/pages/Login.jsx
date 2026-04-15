@@ -294,23 +294,6 @@ export default function Login() {
                   />
                 ) : null}
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    marginBottom: 24,
-                  }}
-                >
-                  <Form.Item name="remember" valuePropName="checked" noStyle>
-                    <Checkbox>Keep me signed in</Checkbox>
-                  </Form.Item>
-                  <Button type="link" style={{ padding: 0 }}>
-                    Forgot password?
-                  </Button>
-                </div>
-
                 <Button
                   type="primary"
                   htmlType="submit"
@@ -324,7 +307,7 @@ export default function Login() {
                     boxShadow: "0 12px 24px rgba(26, 72, 211, 0.18)",
                   }}
                 >
-                  Sign in to dashboard
+                  Sign in
                 </Button>
               </Form>
 

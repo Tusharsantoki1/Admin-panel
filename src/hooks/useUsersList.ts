@@ -11,7 +11,7 @@ export const fetchUsersList = async ({
   page?: number;
   limit?: number;
   filters?: Record<string, any>;
-  sortOrder?: "asc" | "desc";
+  sortOrder?: "asc" | "desc" | undefined;
 } = {}) => {
   const { access_token } = getUserData();
   const response: { data: any } = await getUsers(access_token as string, {
@@ -28,6 +28,11 @@ export const useUsersList = ({
   limit = 25,
   filters = {},
   sortOrder = "desc",
+}: {
+  page?: number;
+  limit?: number;
+  filters?: Record<string, any>;
+  sortOrder?: "asc" | "desc" | undefined;
 } = {}) => {
   return useQuery({
     queryKey: ["user", "list", page, limit, filters, sortOrder],

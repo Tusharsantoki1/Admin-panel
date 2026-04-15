@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Tag, Space, Dropdown, App, Select, Button, Tooltip } from "antd";
+import { Tag, Space, Dropdown, App, Select, Button, Tooltip, Form, InputNumber } from "antd";
 import {
   CheckCircleFilled,
   CloseCircleFilled,
   ExperimentOutlined,
-  DeleteOutlined,
+  ClockCircleOutlined,
   MoreOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
 import CommonTableLayout from "../components/CommonTableLayout";
 import { useUsersList } from "../hooks/useUsersList";
+import { useTrialExtend } from "../hooks/useTrialExtend";
 
 const StatusIcon = ({ value }) =>
   Number(value) ? (
@@ -57,6 +58,7 @@ const formatDateAndTime = (value) => {
 export default function UsersPage() {
   const { message, modal } = App.useApp();
   const [page, setPage] = useState(1);
+  const [form] = Form.useForm();
   const [pageSize, setPageSize] = useState(25);
   const [emailSearch, setEmailSearch] = useState("");
   const [debouncedEmailSearch, setDebouncedEmailSearch] = useState("");
@@ -64,12 +66,12 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState(undefined);
   const [countryFilter, setCountryFilter] = useState(undefined);
   const [sortOrder, setSortOrder] = useState("desc");
-
+  const { mutateAsync: trialExtend } = useTrialExtend();
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedEmailSearch(emailSearch.trim());
       setPage(1);
-    }, 400);
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, [emailSearch]);
@@ -96,14 +98,76 @@ export default function UsersPage() {
   const pagination = usersResponse?.pagination || {};
 
   const handleTrial = (user) => {
-    if (String(user.status).toLowerCase() === "active") {
-      return message.error("Trial already active");
-    }
+    // Reset form to defaults every time the modal opens
+    form.setFieldsValue({ days: 15, brokers: 1 });
 
     modal.confirm({
-      title: "Start Trial",
-      onOk: () => {
-        message.success("7-day trial started");
+      title: <div style={{ display: 'flex', alignItems: 'center' }}> <ClockCircleOutlined style={{ marginRight: 10, fontSize: 14 }} />Extend trial for</div>,
+      icon: null,
+      width: 420,
+      maskClosable: true,
+      content: (
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ days: 15, brokers: 1 }}
+          style={{ marginTop: 10 }}
+        >
+          <Form.Item
+            label="Days"
+            name="days"
+            rules={[
+              { required: true, message: "Please enter number of days" },
+              { type: "number", min: 1, max: 15, message: "Days must be between 1 and 15" },
+            ]}
+          >
+            <InputNumber
+              min={1}
+              max={15}
+              style={{ width: "100%" }}
+              placeholder="Enter days (max 15)"
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Brokers"
+            name="brokers"
+            rules={[
+              { required: true, message: "Please enter number of brokers" },
+              { type: "number", min: 1, max: 10, message: "Brokers must be between 1 and 10" },
+            ]}
+          >
+            <InputNumber
+              min={1}
+              max={10}
+              style={{ width: "100%" }}
+              placeholder="Enter brokers (max 10)"
+            />
+          </Form.Item>
+        </Form>
+      ),
+      okText: "Extend Trial",
+      cancelText: "Cancel",
+      onOk: async () => {
+        try {
+          // Validate before submitting
+          const values = await form.validateFields();
+
+          await trialExtend({
+            days: values.days,
+            brokers: values.brokers,
+            user_id: user.id,
+          });
+          refetch();
+          message.success(`Trial extended by ${values.days} days for ${user.email}`);
+        } catch (err) {
+          // If it's a form validation error, keep the modal open by re-throwing
+          if (err?.errorFields) {
+            return Promise.reject(err);
+          }
+          message.error("Failed to extend trial. Please try again.");
+          return Promise.reject(err);
+        }
       },
     });
   };
@@ -256,7 +320,10 @@ export default function UsersPage() {
       align: "center",
       render: (_, record) => (
         <Space size="small">
-          <Dropdown
+          <div onClick={() => handleTrial(record)}>
+            <ClockCircleOutlined style={{ cursor: "pointer", fontSize: 16 }} />
+          </div>
+          {/* <Dropdown
             menu={{
               items: [
                 {
@@ -265,19 +332,19 @@ export default function UsersPage() {
                   icon: <ExperimentOutlined />,
                   onClick: () => handleTrial(record),
                 },
-                {
-                  key: "delete",
-                  label: "Delete",
-                  icon: <DeleteOutlined />,
-                  danger: true,
-                  onClick: () => handleDelete(record.id),
-                },
+                // {
+                //   key: "delete",
+                //   label: "Delete",
+                //   icon: <DeleteOutlined />,
+                //   danger: true,
+                //   onClick: () => handleDelete(record.id),
+                // },
               ],
             }}
           >
             <MoreOutlined style={{ cursor: "pointer", fontSize: 16 }} />
-          </Dropdown>
-        </Space>
+          </Dropdown> */}
+        </Space >
       ),
     },
   ];

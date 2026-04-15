@@ -7,9 +7,12 @@ import {
   CloseCircleFilled,
 } from "@ant-design/icons";
 import CommonTableLayout from "../components/CommonTableLayout";
+import { usePlansList } from "../hooks/usePlansList";
 
 export default function PlanPage({ plans, setPlans }) {
   const { message, modal } = App.useApp();
+  const { data } = usePlansList();
+  console.log(data);
 
   const handleDelete = (id) => {
     modal.confirm({

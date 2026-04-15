@@ -38,6 +38,11 @@ export const callAPI = async (
     if (axios.isAxiosError(error)) {
       const statusCode = error.response?.status;
       const errorData = error.response?.data;
+      if (!window.location.pathname.includes('/login')) {
+        if (statusCode === 401 || statusCode === 403) {
+          window.location.href = '/login';
+        }
+      }
 
       throw (
         JSON.stringify({
