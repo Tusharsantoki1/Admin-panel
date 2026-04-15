@@ -55,6 +55,14 @@ const formatDateAndTime = (value) => {
   }).format(date);
 };
 
+export const renderDateWithHover = (value) => (
+  <Tooltip title={value || "N/A"}>
+    <span style={{ cursor: 'pointer' }}>
+      {formatDate(value)}
+    </span>
+  </Tooltip>
+);
+
 export default function UsersPage() {
   const { message, modal } = App.useApp();
   const [page, setPage] = useState(1);
@@ -193,13 +201,7 @@ export default function UsersPage() {
     setPageSize(25);
   };
 
-  const renderDateWithHover = (value) => (
-    <Tooltip title={value || "N/A"}>
-      <span style={{ cursor: 'pointer' }}>
-        {formatDate(value)}
-      </span>
-    </Tooltip>
-  );
+
 
   const columns = [
     {

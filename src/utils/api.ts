@@ -22,6 +22,15 @@ const getPlans = async (access_token: string) => {
   return { data: response };
 };
 
+const getCoupon = async (access_token: string) => {
+  const response = await callAPI("get", `${BASE_URL}/hedgex/admin/coupons`, {}, access_token);
+  return { data: response };
+};
+
+const getPaymentHistory = async (access_token: string) => {
+  const response = await callAPI("get", `${BASE_URL}/hedgex/admin/payment-history`, {}, access_token);
+  return { data: response };
+};
 
 const userTrialExtend = async (data: { user_id: number, days: number, brokers: string }, access_token: string) => {
   const response = await callAPI("post", `${BASE_URL}/hedgex/admin/users/activate-trial`, data, access_token);
@@ -54,4 +63,4 @@ const getUsers = async (
   return { data: response };
 };
 
-export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans };
+export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans, getCoupon, getPaymentHistory };

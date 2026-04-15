@@ -1,5 +1,5 @@
 import React from "react";
-import { Tag, Dropdown, App } from "antd";
+import { Tag, Dropdown, App, Tooltip } from "antd";
 import {
   DeleteOutlined,
   MoreOutlined,
@@ -11,8 +11,8 @@ import { usePlansList } from "../hooks/usePlansList";
 
 export default function PlanPage({ plans, setPlans }) {
   const { message, modal } = App.useApp();
+  // Note: Ensure 'plans' passed from parent matches the 'data' structure provided
   const { data } = usePlansList();
-  console.log(data);
 
   const handleDelete = (id) => {
     modal.confirm({
@@ -28,8 +28,8 @@ export default function PlanPage({ plans, setPlans }) {
   const toggleStatus = (record) => {
     setPlans((prev) =>
       prev.map((p) =>
-        p.id === record.id
-          ? { ...p, status: p.status === "Active" ? "Inactive" : "Active" }
+        p.id === record?.id
+          ? { ...p, isActive: p.isActive === 1 ? 0 : 1 }
           : p,
       ),
     );
@@ -40,110 +40,133 @@ export default function PlanPage({ plans, setPlans }) {
     {
       title: "Name",
       dataIndex: "name",
-      width: 140,
-      render: (v) => <b>{v}</b>,
+      width: 150,
+      render: (v, record) => (
+        <div>
+          <b style={{ display: "block" }}>{v}</b>
+          <span style={{ fontSize: "10px", color: "#999" }}>{record?.code}</span>
+        </div>
+      ),
     },
     {
       title: "Price",
       dataIndex: "price",
+      width: 100,
+      render: (v) => <b>₹{parseFloat(v).toLocaleString()}</b>,
+    },
+    {
+      title: "Type",
+      dataIndex: "planType",
       width: 90,
-      render: (v) => <b>${v}</b>,
+      render: (v) => <Tag color={v === "addon" ? "orange" : "purple"}>{v?.toUpperCase()}</Tag>,
     },
     {
       title: "Billing",
-      dataIndex: "billing",
+      dataIndex: "subscriptionPeriod",
       width: 110,
       render: (v) => <Tag color="blue">{v}</Tag>,
     },
     {
       title: "Features",
-      dataIndex: "features",
-      width: 220,
+      dataIndex: "featureLists",
+      width: 250,
       ellipsis: true,
-      render: (v) => <span style={{ color: "#888", fontSize: 12 }}>{v}</span>,
-    },
-    {
-      title: "Users",
-      dataIndex: "users",
-      width: 80,
-      render: (v) => v?.toLocaleString(),
+      render: (v) => {
+        try {
+          const features = JSON.parse(v);
+          return (
+            <Tooltip title={features.join(", ")}>
+              <span style={{ color: "#888", fontSize: 12 }}>
+                {features.length} Features: {features[0]}...
+              </span>
+            </Tooltip>
+          );
+        } catch (e) {
+          return <span style={{ color: "#888", fontSize: 12 }}>{v}</span>;
+        }
+      },
     },
     {
       title: "Created",
       dataIndex: "created_at",
-      width: 110,
+      width: 180,
       render: (v) => <span style={{ color: "#888", fontSize: 12 }}>{v}</span>,
     },
     {
       title: "Status",
-      dataIndex: "status",
+      dataIndex: "isActive",
       width: 100,
       render: (v, record) => (
         <span
           onClick={() => toggleStatus(record)}
           style={{ cursor: "pointer" }}
         >
-          {v === "Active" ? (
-            <CheckCircleFilled style={{ color: "#52c41a", marginRight: 4 }} />
+          {v === 1 ? (
+            <>
+              <CheckCircleFilled style={{ color: "#52c41a", marginRight: 4 }} />
+              <b style={{ color: "#52c41a" }}>Active</b>
+            </>
           ) : (
-            <CloseCircleFilled style={{ color: "#ff4d4f", marginRight: 4 }} />
+            <>
+              <CloseCircleFilled style={{ color: "#ff4d4f", marginRight: 4 }} />
+              <b style={{ color: "#ff4d4f" }}>Inactive</b>
+            </>
           )}
-          <b style={{ color: v === "Active" ? "#52c41a" : "#ff4d4f" }}>{v}</b>
         </span>
       ),
     },
-    {
-      title: "Action",
-      key: "action",
-      fixed: "right",
-      width: 70,
-      align: "center",
-      render: (_, record) => (
-        <Dropdown
-          menu={{
-            items: [
-              {
-                key: "delete",
-                label: "Delete",
-                icon: <DeleteOutlined />,
-                danger: true,
-                onClick: () => handleDelete(record.id),
-              },
-            ],
-          }}
-        >
-          <MoreOutlined style={{ cursor: "pointer", fontSize: 16 }} />
-        </Dropdown>
-      ),
-    },
+    // {
+    //   title: "Action",
+    //   key: "action",
+    //   fixed: "right",
+    //   width: 70,
+    //   align: "center",
+    //   render: (_, record) => (
+    //     <Dropdown
+    //       menu={{
+    //         items: [
+    //           {
+    //             key: "delete",
+    //             label: "Delete",
+    //             icon: <DeleteOutlined />,
+    //             danger: true,
+    //             onClick: () => handleDelete(record?.id),
+    //           },
+    //         ],
+    //       }}
+    //     >
+    //       <MoreOutlined style={{ cursor: "pointer", fontSize: 16 }} />
+    //     </Dropdown>
+    //   ),
+    // },
   ];
 
   return (
     <CommonTableLayout
       columns={columns}
-      dataSource={plans}
+      dataSource={data?.data || []}
       rowKey="id"
-      searchFields={["name", "billing", "features", "status"]}
-      searchPlaceholder="Search plans..."
-      exportFilename="plans"
+      searchFields={["name", "code", "subscriptionPeriod", "planType"]}
+      searchPlaceholder="Search by name, code or period..."
+      exportFilename="plans_export"
       exportHeaders={[
         "ID",
         "Name",
+        "Code",
         "Price",
-        "Billing",
-        "Features",
-        "Users",
+        "Type",
+        "Period",
         "Status",
         "Created At",
       ]}
       exportMapper={(p) => [
         p.id,
         p.name,
+        p.code,
         p.price,
-        p.billing,
-        p.features,
-        p.users,
-        p.status,
+        p.planType,
+        p.subscriptionPeriod,
+        p.isActive === 1 ? "Active" : "Inactive",
         p.created_at,
       ]}
     />
