@@ -27,6 +27,11 @@ const getUserDetail = async (id: number, access_token: string) => {
   return { data: response };
 };
 
+const getTrialDetail = async (id: number, access_token: string) => {
+  const response = await callAPI("get", `${BASE_URL}/hedgex/admin/trial-history/${id}`, {}, access_token);
+  return { data: response };
+};
+
 const getCoupon = async (access_token: string) => {
   const response = await callAPI("get", `${BASE_URL}/hedgex/admin/coupons`, {}, access_token);
   return { data: response };
@@ -68,4 +73,4 @@ const getUsers = async (
   return { data: response };
 };
 
-export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans, getCoupon, getPaymentHistory, getUserDetail };
+export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans, getCoupon, getPaymentHistory, getUserDetail, getTrialDetail };

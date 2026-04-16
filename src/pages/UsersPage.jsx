@@ -12,6 +12,8 @@ import CommonTableLayout from "../components/CommonTableLayout";
 import { useUsersList } from "../hooks/useUsersList";
 import { useTrialExtend } from "../hooks/useTrialExtend";
 import { useQueryClient } from "@tanstack/react-query";
+import { TrialModal } from "../components/TrialModal";
+import { useTrialdetail } from "../hooks/useTrialdetail";
 
 const StatusIcon = ({ value }) =>
   Number(value) ? (
@@ -20,7 +22,7 @@ const StatusIcon = ({ value }) =>
     <CloseCircleFilled style={{ color: "#ff4d4f", fontSize: 14 }} />
   );
 
-const normalizeLabel = (value) => {
+export const normalizeLabel = (value) => {
   if (value === null || value === undefined || value === "") return "--";
   return String(value)
     .trim()
@@ -86,7 +88,32 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState(undefined);
   const [countryFilter, setCountryFilter] = useState(undefined);
   const [sortOrder, setSortOrder] = useState("desc");
-  const { mutateAsync: trialExtend } = useTrialExtend();
+  const { mutateAsync: trialExtend, isPending } = useTrialExtend();
+  const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const { data: trial_activates, isLoading: trial_history_loading } = useTrialdetail(selectedUser?.id);
+
+  const handleOpenTrial = (user) => {
+    setSelectedUser(user);
+    setIsTrialModalOpen(true);
+  };
+
+  const handleTrialSubmit = async (values) => {
+    try {
+      await trialExtend({
+        days: values.days,
+        brokers: values.brokers,
+        user_id: selectedUser.id,
+      });
+      queryClient.invalidateQueries(["user", "trial", selectedUser.id]);
+      message.success("Trial extended successfully");
+      setIsTrialModalOpen(false);
+      refetch(); // Refresh user list
+    } catch (err) {
+      message.error("Failed to extend trial");
+    }
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedEmailSearch(emailSearch.trim());
@@ -143,14 +170,14 @@ export default function UsersPage() {
             name="days"
             rules={[
               { required: true, message: "Please enter number of days" },
-              { type: "number", min: 1, max: 15, message: "Days must be between 1 and 15" },
+              { type: "number", min: 1, max: 31, message: "Days must be between 1 and 31" },
             ]}
           >
             <InputNumber
               min={1}
-              max={15}
+              max={31}
               style={{ width: "100%" }}
-              placeholder="Enter days (max 15)"
+              placeholder="Enter days (max 31)"
             />
           </Form.Item>
 
@@ -339,7 +366,7 @@ export default function UsersPage() {
       align: "center",
       render: (_, record) => (
         <Space size="small">
-          <div onClick={() => handleTrial(record)}>
+          <div onClick={() => handleOpenTrial(record)}>
             <ClockCircleOutlined style={{ cursor: "pointer", fontSize: 16 }} />
           </div>
           {/* <Dropdown
@@ -369,107 +396,118 @@ export default function UsersPage() {
   ];
 
   return (
-    <CommonTableLayout
-      columns={columns}
-      dataSource={users}
-      rowKey="id"
-      loading={isLoading || isFetching}
-      pageSize={pageSize}
-      disableClientSearch
-      searchValue={emailSearch}
-      onSearchChange={setEmailSearch}
-      searchPlaceholder="Search by email..."
-      pagination={{
-        current: pagination.page || page,
-        pageSize: pagination.limit || pageSize,
-        total: pagination.total || 0,
-        size: "small",
-        position: ["bottomRight"],
-        showSizeChanger: true,
-        pageSizeOptions: [10, 25, 50, 100],
-        onChange: (nextPage, nextPageSize) => {
-          setPage(nextPage);
-          if (nextPageSize !== pageSize) {
-            setPageSize(nextPageSize);
-            if (nextPage !== 1) setPage(1);
-          }
-        },
-      }}
-      toolbarExtra={
-        <Space wrap>
-          <Select
-            allowClear
-            placeholder="Status"
-            style={{ width: 120 }}
-            value={statusFilter}
-            onChange={(value) => {
-              setStatusFilter(value);
-              setPage(1);
-            }}
-            options={[
-              { label: "Active", value: "active" },
-              { label: "Trial", value: "trial" },
-              { label: "Expired", value: "expired" },
-            ]}
-          />
-          <Select
-            allowClear
-            placeholder="Role"
-            style={{ width: 120 }}
-            value={roleFilter}
-            onChange={(value) => {
-              setRoleFilter(value);
-              setPage(1);
-            }}
-            options={[
-              { label: "Admin", value: "admin" },
-              { label: "User", value: "user" },
-            ]}
-          />
-          <Select
-            placeholder="Sort"
-            style={{ width: 140 }}
-            value={sortOrder}
-            onChange={(value) => {
-              setSortOrder(value);
-              setPage(1);
-            }}
-            options={[
-              { label: "Newest first", value: "desc" },
-              { label: "Oldest first", value: "asc" },
-            ]}
-          />
-          <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
-            Refresh
-          </Button>
-          <Button onClick={clearFilters}>Reset</Button>
-        </Space>
-      }
-      exportFilename="users"
-      exportHeaders={[
-        "ID",
-        "First Name",
-        "Last Name",
-        "Email",
-        "Phone",
-        "Status",
-        "Role",
-        "Country",
-        "City",
-        "Created At",
-      ]}
-      exportMapper={(user) => [
-        user.id,
-        user.first_name,
-        user.last_name,
-        user.email,
-        user.phone_number,
-        user.status,
-        user.role,
-        user.country,
-        user.city,
-        user.created_at,
-      ]}
-    />
+    <>
+      <CommonTableLayout
+        columns={columns}
+        dataSource={users}
+        rowKey="id"
+        loading={isLoading || isFetching}
+        pageSize={pageSize}
+        disableClientSearch
+        searchValue={emailSearch}
+        onSearchChange={setEmailSearch}
+        searchPlaceholder="Search by email..."
+        pagination={{
+          current: pagination.page || page,
+          pageSize: pagination.limit || pageSize,
+          total: pagination.total || 0,
+          size: "small",
+          position: ["bottomRight"],
+          showSizeChanger: true,
+          pageSizeOptions: [10, 25, 50, 100],
+          onChange: (nextPage, nextPageSize) => {
+            setPage(nextPage);
+            if (nextPageSize !== pageSize) {
+              setPageSize(nextPageSize);
+              if (nextPage !== 1) setPage(1);
+            }
+          },
+        }}
+        toolbarExtra={
+          <Space wrap>
+            <Select
+              allowClear
+              placeholder="Status"
+              style={{ width: 120 }}
+              value={statusFilter}
+              onChange={(value) => {
+                setStatusFilter(value);
+                setPage(1);
+              }}
+              options={[
+                { label: "Active", value: "active" },
+                { label: "Trial", value: "trial" },
+                { label: "Expired", value: "expired" },
+              ]}
+            />
+            <Select
+              allowClear
+              placeholder="Role"
+              style={{ width: 120 }}
+              value={roleFilter}
+              onChange={(value) => {
+                setRoleFilter(value);
+                setPage(1);
+              }}
+              options={[
+                { label: "Admin", value: "admin" },
+                { label: "User", value: "user" },
+              ]}
+            />
+            <Select
+              placeholder="Sort"
+              style={{ width: 140 }}
+              value={sortOrder}
+              onChange={(value) => {
+                setSortOrder(value);
+                setPage(1);
+              }}
+              options={[
+                { label: "Newest first", value: "desc" },
+                { label: "Oldest first", value: "asc" },
+              ]}
+            />
+            <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+              Refresh
+            </Button>
+            <Button onClick={clearFilters}>Reset</Button>
+          </Space>
+        }
+        exportFilename="users"
+        exportHeaders={[
+          "ID",
+          "First Name",
+          "Last Name",
+          "Email",
+          "Phone",
+          "Status",
+          "Role",
+          "Country",
+          "City",
+          "Created At",
+        ]}
+        exportMapper={(user) => [
+          user.id,
+          user.first_name,
+          user.last_name,
+          user.email,
+          user.phone_number,
+          user.status,
+          user.role,
+          user.country,
+          user.city,
+          user.created_at,
+        ]}
+      />
+      <TrialModal
+        visible={isTrialModalOpen}
+        user={selectedUser}
+        historyData={trial_activates?.data || []} // Data from your trial_activates table
+        isLoadingHistory={trial_history_loading}
+        loadingSubmit={isPending} // from your mutation
+        onCancel={() => setIsTrialModalOpen(false)}
+        onOk={handleTrialSubmit}
+      />
+    </>
   );
 }

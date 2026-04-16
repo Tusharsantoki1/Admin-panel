@@ -180,20 +180,6 @@ export default function DashboardPage() {
     },
   ];
 
-  if (isLoading) {
-    return (
-      <div
-        style={{
-          minHeight: "calc(100vh - 50px)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Spin size="large" />
-      </div>
-    );
-  }
 
   return (
     <div
@@ -321,6 +307,7 @@ export default function DashboardPage() {
       >
         {usersResponse?.data?.length ? (
           <Table
+            loading={isLoading}
             columns={tableColumns}
             dataSource={usersResponse?.data?.slice(0, 10) || []}
             rowKey="id"

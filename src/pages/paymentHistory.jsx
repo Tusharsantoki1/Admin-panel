@@ -8,12 +8,14 @@ import {
 } from "@ant-design/icons";
 import CommonTableLayout from "../components/CommonTableLayout";
 import { usePaymentHistoryList } from "../hooks/usePaymentHistoryList";
-import { renderDateWithHover } from "./UsersPage";
+import { normalizeLabel, renderDateWithHover } from "./UsersPage";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function History() {
   // Note: the prop 'users' should ideally be 'historyData' now based on your JSON
   const { data } = usePaymentHistoryList();
+  console.log(data);
+
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -22,10 +24,22 @@ export default function History() {
   }, [data])
   const columns = [
     {
-      title: "User ID",
-      dataIndex: "userId",
-      width: 80,
-      fixed: "left",
+      title: "First Name",
+      dataIndex: "first_name",
+      width: 120,
+      ellipsis: true,
+      render: (value, record) => normalizeLabel(record?.user?.first_name),
+    },
+    {
+      title: "Last Name",
+      dataIndex: "last_name",
+      width: 120,
+      ellipsis: true,
+      render: (value, record) => normalizeLabel(record?.user?.last_name),
+    },
+    {
+      title: "Email", dataIndex: "email", width: 220, ellipsis: true,
+      render: (value, record) => normalizeLabel(record?.user?.email),
     },
     {
       title: "Created",
@@ -176,14 +190,14 @@ export default function History() {
       searchPlaceholder="Search by Order, Payment ID or Coupon..."
       exportFilename="payment_history"
       exportHeaders={[
-        "ID", "User ID", "Order ID", "Payment ID", "Status", "Method",
+        "ID", "User ID", "First Name", "Last Name", "Email", "Order ID", "Payment ID", "Status", "Method",
         "Subtotal", "Tax", "Discount", "Total", "After Discount",
         "Plan ID", "Period", "Days", "Addon Days", "Brokers",
         "Coupon Code", "Coupon Value", "Offer Type", "Txn Type",
         "Activation Date", "Expiry Date", "Created At", "Updated At"
       ]}
       exportMapper={(u) => [
-        u.id, u.userId, u.order_id, u.paymentId, u.paymentStatus, u.paymentMethod,
+        u.id, u.userId, u?.user?.first_name, u?.user?.last_name, u?.user?.email, u.order_id, u.paymentId, u.paymentStatus, u.paymentMethod,
         u.subTotalAmount, u.taxAmount, u.discountAmount, u.totalAmount, u.afterDiscountAmount,
         u.planId, u.subscriptionPeriod, u.subscriptionDays, u.addonDays, u.brokers,
         u.couponCode, u.couponValue, u.offerType, u.transactionType,
