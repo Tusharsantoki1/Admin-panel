@@ -79,6 +79,7 @@ const theme = {
             fontSize: '12px',
             cellHeight: '18px',
             cellHoverBg: '#f3f5fe',
+            controlHeight: '28px',
         },
         Dropdown: {
             controlPaddingHorizontal: 8,

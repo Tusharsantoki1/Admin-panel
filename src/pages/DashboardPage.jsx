@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Avatar,
   Button,
@@ -12,22 +12,25 @@ import {
   Table,
   Typography,
   theme,
+  Select, // Added Select
 } from "antd";
 import {
   ArrowRightOutlined,
   CheckCircleOutlined,
   TeamOutlined,
   UserAddOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "../components/Badge";
 import { useUsersList } from "../hooks/useUsersList";
 import { toTitleCase } from "../utils/helpers";
-import { renderDateTimeWithHover, renderDateWithHover } from "./UsersPage";
+import { renderDateTimeWithHover } from "./UsersPage";
 import { useQueryClient } from "@tanstack/react-query";
 
 const { Title, Text } = Typography;
 
+// ... StatCard component remains the same ...
 function StatCard({
   label,
   value,
@@ -76,7 +79,6 @@ function StatCard({
             {subtitle}
           </Text>
         </div>
-
         <div
           style={{
             width: 48,
@@ -103,17 +105,24 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const queryClient = useQueryClient();
+
+  // 1. Add state for the filter selection
+  const [filterType, setFilterType] = useState("recent");
+
+  // 2. Pass the filter selection to your hook
+  // Assuming your backend/hook accepts these keys in the filters object
   const { data: usersResponse, isLoading } = useUsersList({
     page: 1,
     limit: 25,
-    filters: {},
-    sortOrder: 'desc',
+    filters: {
+      ...(filterType != "recent" && { view_mode: filterType }),
+    },
+    sortOrder: "desc",
   });
 
   useEffect(() => {
-    queryClient.setQueryData(['title'], { title: 'Dashboard', count: '' })
-  }, [])
-
+    queryClient.setQueryData(["title"], { title: "Dashboard", count: "" });
+  }, []);
 
   const tableColumns = [
     {
@@ -142,11 +151,7 @@ export default function DashboardPage() {
         </Flex>
       ),
     },
-    {
-      title: "Email",
-      dataIndex: "email",
-      key: "email",
-    },
+    { title: "Email", dataIndex: "email", key: "email" },
     {
       title: "Phone",
       dataIndex: "phone_number",
@@ -158,20 +163,27 @@ export default function DashboardPage() {
       key: "status",
       render: (value) => <Badge label={toTitleCase(value)} />,
     },
-    {
-      title: "Role",
-      dataIndex: "role",
-      key: "role",
-      render: (value) => <Badge label={toTitleCase(value)} />,
-    },
-    { title: "State", dataIndex: "state", width: 110, ellipsis: true },
-    {
-      title: "City",
-      dataIndex: "city",
-      width: 110,
-      ellipsis: true,
-      render: (value) => toTitleCase(value),
-    },
+    // ✅ Fix dataIndex to match database columns 'followup' and 'expiryDate'
+    ...(filterType === "followup"
+      ? [
+        {
+          title: "Follow Up Date",
+          dataIndex: "followup", // Changed from "follow_up_date"
+          key: "followup",
+          render: renderDateTimeWithHover,
+        },
+      ]
+      : []),
+    ...(filterType.includes("expire")
+      ? [
+        {
+          title: "Expiry Date",
+          dataIndex: "expiryDate", // Changed from "expiry_date"
+          key: "expiryDate",
+          render: renderDateTimeWithHover,
+        },
+      ]
+      : []),
     {
       title: "Joined",
       dataIndex: "created_at",
@@ -179,7 +191,6 @@ export default function DashboardPage() {
       render: renderDateTimeWithHover,
     },
   ];
-
 
   return (
     <div
@@ -190,6 +201,7 @@ export default function DashboardPage() {
         minHeight: "calc(100vh - 50px)",
       }}
     >
+      {/* Header Banner */}
       <Card
         bordered={false}
         style={{
@@ -218,12 +230,10 @@ export default function DashboardPage() {
                 Dashboard
               </Title>
               <Text style={{ fontSize: 15, color: "rgba(255,255,255,0.84)" }}>
-                Track customer growth, active usage, and the newest signups from
-                one place.
+                Track customer growth and time-sensitive account status.
               </Text>
             </Space>
           </Col>
-
           <Col xs={24} lg={8}>
             <Flex justify="flex-end" align="center">
               <Button
@@ -240,14 +250,14 @@ export default function DashboardPage() {
                   boxShadow: "none",
                 }}
               >
-                Open users
-                <ArrowRightOutlined />
+                Open users <ArrowRightOutlined />
               </Button>
             </Flex>
           </Col>
         </Row>
       </Card>
 
+      {/* Stats Section */}
       <Row gutter={[18, 18]} style={{ marginBottom: 24 }}>
         <Col xs={24} md={12} xl={8}>
           <StatCard
@@ -284,25 +294,34 @@ export default function DashboardPage() {
         </Col>
       </Row>
 
+      {/* Main Filterable Table Card */}
       <Card
         bordered={false}
         title={
-          <div>
-            <div style={{ fontWeight: 700, color: "#16213E" }}>Recent Users</div>
-            <Text style={{ fontSize: 12, color: "#6B7280" }}>
-              Latest registrations across the platform
-            </Text>
-          </div>
+          <Space size={12}>
+            <div style={{ fontWeight: 700, color: "#16213E" }}>
+              User Monitoring
+            </div>
+            <Select
+              variant="filled"
+              value={filterType}
+              onChange={(val) => setFilterType(val)}
+              style={{ width: 200 }}
+              options={[
+                { value: "recent", label: "Recent Users" },
+                { value: "expire_10", label: "Expire in 10 days" },
+                { value: "expired_30", label: "Expired in 30 days" },
+                { value: "followup", label: "Follow up date" },
+              ]}
+            />
+          </Space>
         }
         extra={
           <Button type="link" onClick={() => navigate("/users")}>
             View All <ArrowRightOutlined />
           </Button>
         }
-        style={{
-          borderRadius: 6,
-          border: "1px solid #E5E7EB",
-        }}
+        style={{ borderRadius: 6, border: "1px solid #E5E7EB" }}
         bodyStyle={{ padding: 0 }}
       >
         {usersResponse?.data?.length ? (

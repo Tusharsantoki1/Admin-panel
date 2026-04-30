@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { ConfigProvider, App as AntApp, Layout } from "antd"; // 🔥 Added Antd
+import { ConfigProvider, App as AntApp, Layout } from "antd";
 
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
@@ -25,9 +25,6 @@ import { theme } from "./utils/Theme";
 import { getUserData } from "./utils/helpers";
 import Login from "./pages/Login";
 
-const initialUsers = generateUsers(60);
-const initialCoupons = generateCoupons(30);
-const initialPlans = generatePlans(12);
 const initialPermissions = generatePermissions(20);
 
 const queryClient = new QueryClient({
@@ -52,54 +49,38 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ReactQueryDevtools initialIsOpen={false} />
-      {/* ConfigProvider allows us to customize the global Ant Design theme */}
       <ConfigProvider theme={theme}>
         <AntApp>
-          {/* AntApp provides global Context for Messages/Modals/Notifications */}
           {isLoginPage ? (
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           ) : (
-            <Layout style={{ minHeight: "100vh", overflow: "hidden" }}>
+            // 1. Set strict height instead of minHeight
+            <Layout style={{ height: "100vh", overflow: "hidden" }}>
               <Sidebar />
 
-              <Layout>
+              {/* 2. Add strict height to inner Layout */}
+              <Layout style={{ height: "100vh" }}>
                 <Topbar />
 
                 <Content
                   style={{
-                    overflow: "auto",
+                    height: "calc(100vh - 50px)", // 3. Subtract Topbar height
+                    overflowY: "auto", // 4. Let only this section scroll
                     background: "#fdfdfd",
                   }}
                 >
                   <Routes>
                     <Route path="/login" element={<Login />} />
                     <Route element={<PrivateRoute access_token={access_token} />}>
-                      <Route
-                        path="/user/:id"
-                        element={<UserDetailsPage />}
-                      />
+                      <Route path="/user/:id" element={<UserDetailsPage />} />
                       <Route path="/" element={<DashboardPage />} />
-                      <Route
-                        path="/users"
-                        element={<UsersPage />}
-                      />
-                      <Route
-                        path="/coupon"
-                        element={
-                          <CouponPage />
-                        }
-                      />
-                      <Route
-                        path="/plan"
-                        element={<PlanPage />}
-                      />
-                      <Route
-                        path="/History"
-                        element={<History />}
-                      />
+                      <Route path="/users" element={<UsersPage />} />
+                      <Route path="/coupon" element={<CouponPage />} />
+                      <Route path="/plan" element={<PlanPage />} />
+                      <Route path="/History" element={<History />} />
                       <Route
                         path="/permission"
                         element={

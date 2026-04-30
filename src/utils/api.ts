@@ -47,6 +47,21 @@ const userTrialExtend = async (data: { user_id: number, days: number, brokers: s
   return { data: response };
 };
 
+const userFollowup = async (data: { user_id: number, followup: any }, access_token: string) => {
+  const response = await callAPI("put", `${BASE_URL}/hedgex/admin/users/${data?.user_id}/followup`, { followup: data?.followup }, access_token);
+  return { data: response };
+};
+
+const checkExpiry = async (access_token: string) => {
+  const response = await callAPI("post", `${BASE_URL}/hedgex/admin/users/check-expiries`, {}, access_token);
+  return { data: response };
+};
+
+const userNote = async (data: { user_id: number, description: string, note_date: any }, access_token: string) => {
+  const response = await callAPI("post", `${BASE_URL}/hedgex/admin/users/${data?.user_id}/notes`, { description: data?.description, note_date: data?.note_date }, access_token);
+  return { data: response };
+};
+
 const getUsers = async (
   access_token: string,
   payload: {
@@ -73,4 +88,4 @@ const getUsers = async (
   return { data: response };
 };
 
-export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans, getCoupon, getPaymentHistory, getUserDetail, getTrialDetail };
+export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans, getCoupon, getPaymentHistory, getUserDetail, getTrialDetail, userFollowup, checkExpiry, userNote };
