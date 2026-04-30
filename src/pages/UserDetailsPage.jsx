@@ -8,6 +8,7 @@ import {
   CalendarOutlined,
   ProfileOutlined,
   ExperimentOutlined,
+  EditOutlined, // ✅ Added Edit icon for Group
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useUserdetail } from "../hooks/useUserdetail";
@@ -15,6 +16,7 @@ import { useUpdateFollowup } from "../hooks/useUpdateFollowup";
 import { useAddNote } from "../hooks/useAddNote";
 import { useTrialExtend } from "../hooks/useTrialExtend";
 import { useTrialdetail } from "../hooks/useTrialdetail";
+import { useUpdateGroup } from "../hooks/useUpdateGroup"; // ✅ Added Update Group Hook
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateAndTime, renderDateTimeWithHover } from "./UsersPage";
 
@@ -77,12 +79,16 @@ export default function UserDetailsPage() {
   const { mutateAsync: updateFollowup, isPending: isFollowupPending } = useUpdateFollowup();
   const { mutateAsync: addNote, isPending: isNotePending } = useAddNote();
   const { mutateAsync: trialExtend, isPending: isTrialPending } = useTrialExtend();
+  const { mutateAsync: updateGroup, isPending: isGroupPending } = useUpdateGroup(); // ✅ Initialize Group Update Hook
   const { data: trial_activates, isLoading: trial_history_loading, refetch: refetchTrialHistory } = useTrialdetail(Number(id));
 
   // --- States & Forms ---
   const [followupForm] = Form.useForm();
   const [trialForm] = Form.useForm();
+  const [groupForm] = Form.useForm(); // ✅ Added Group Form
+
   const [isFollowupModalOpen, setIsFollowupModalOpen] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false); // ✅ Group Modal State
   const [newNoteText, setNewNoteText] = useState("");
   const [newNoteDate, setNewNoteDate] = useState(dayjs());
 
@@ -124,6 +130,26 @@ export default function UserDetailsPage() {
       if (refetch) refetch();
     } catch (err) {
       if (!err.errorFields) message.error("Failed to update follow-up date");
+    }
+  };
+
+  const handleOpenGroup = () => {
+    groupForm.setFieldsValue({ group: userData?.group });
+    setIsGroupModalOpen(true);
+  };
+
+  const handleGroupSubmit = async () => {
+    try {
+      const values = await groupForm.validateFields();
+      await updateGroup({
+        user_id: Number(id),
+        group: values.group,
+      });
+      message.success("Group updated successfully");
+      setIsGroupModalOpen(false);
+      if (refetch) refetch();
+    } catch (err) {
+      if (!err.errorFields) message.error("Failed to update group");
     }
   };
 
@@ -348,7 +374,18 @@ export default function UserDetailsPage() {
             </Descriptions.Item>
             {renderDI("Permission ID", userData?.permissionId)}
             {renderDI("Plan ID", userData?.planId)}
-            {renderDI("Group", userData?.group)}
+            {/* ✅ Group Details Item with Edit Icon */}
+            <Descriptions.Item label="Group">
+              <span style={{ display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
+                <Cell value={userData?.group} style={{ flex: "1 1 0", minWidth: 0 }} />
+                <Tooltip title="Edit Group">
+                  <EditOutlined
+                    style={{ color: "#1890ff", cursor: "pointer", flexShrink: 0 }}
+                    onClick={handleOpenGroup}
+                  />
+                </Tooltip>
+              </span>
+            </Descriptions.Item>
             {renderDI("OTP", userData?.otp)}
             {renderDI("OTP Expiry", userData?.otp_expiration)}
             {renderDI("Send Email Limit", userData?.send_email_limit)}
@@ -614,6 +651,23 @@ export default function UserDetailsPage() {
         </SectionCard>
 
       </div>
+
+      {/* ── GROUP MODAL ── */}
+      <Modal
+        title="Update Group"
+        open={isGroupModalOpen}
+        onOk={handleGroupSubmit}
+        onCancel={() => setIsGroupModalOpen(false)}
+        confirmLoading={isGroupPending}
+        width={400}
+        okText="Save"
+      >
+        <Form form={groupForm} layout="vertical" style={{ marginTop: 10 }}>
+          <Form.Item label="Group Name" name="group">
+            <Input placeholder="Enter group name" allowClear />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* ── FOLLOW-UP MODAL ── */}
       <Modal

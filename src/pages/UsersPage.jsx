@@ -8,7 +8,8 @@ import {
   MoreOutlined,
   ReloadOutlined,
   CalendarOutlined,
-  ProfileOutlined, // ✅ Added Notes Icon
+  ProfileOutlined,
+  EditOutlined, // ✅ Added Edit icon for Group
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import CommonTableLayout from "../components/CommonTableLayout";
@@ -21,8 +22,9 @@ import { useTrialdetail } from "../hooks/useTrialdetail";
 import { useExpiryCheck } from "../hooks/useExpiryCheck";
 import { useAddNote } from "../hooks/useAddNote";
 import { Link } from "react-router-dom";
+import { useUpdateGroup } from "../hooks/useUpdateGroup";
 
-const { Text } = Typography; // ✅ Added for Notes typography
+const { Text } = Typography;
 
 const StatusIcon = ({ value }) =>
   Number(value) ? (
@@ -90,6 +92,8 @@ export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [form] = Form.useForm();
   const [followupForm] = Form.useForm();
+  const [groupForm] = Form.useForm(); // ✅ Added Group Form
+
   const queryClient = useQueryClient();
   const [pageSize, setPageSize] = useState(25);
   const [emailSearch, setEmailSearch] = useState("");
@@ -99,21 +103,23 @@ export default function UsersPage() {
   const [countryFilter, setCountryFilter] = useState(undefined);
   const [viewModeFilter, setViewModeFilter] = useState(undefined);
   const [sortOrder, setSortOrder] = useState("desc");
+
   const { mutateAsync: trialExtend, isPending } = useTrialExtend();
   const { mutateAsync: updateFollowup, isPending: isFollowupPending } = useUpdateFollowup();
   const { mutateAsync: expiryCheck, isPending: isExpiryPending } = useExpiryCheck();
-  const { mutateAsync: addNote, isPending: isNotePending } = useAddNote(); // ✅ Added Note Mutation Hook
+  const { mutateAsync: addNote, isPending: isNotePending } = useAddNote();
+  const { mutateAsync: updateGroup, isPending: isGroupPending } = useUpdateGroup(); // ✅ Initialize Group Update Hook
 
   const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
   const [isFollowupModalOpen, setIsFollowupModalOpen] = useState(false);
-  const [isNotesModalOpen, setIsNotesModalOpen] = useState(false); // ✅ Added Notes Modal State
-  const [newNoteText, setNewNoteText] = useState(""); // ✅ Added Note Text State
-  const [newNoteDate, setNewNoteDate] = useState(dayjs()); // ✅ Added Note Date State
+  const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false); // ✅ Group Modal State
+  const [newNoteText, setNewNoteText] = useState("");
+  const [newNoteDate, setNewNoteDate] = useState(dayjs());
   const [selectedUser, setSelectedUser] = useState(null);
 
   const { data: trial_activates, isLoading: trial_history_loading } = useTrialdetail(selectedUser?.id);
 
-  // ✅ Safely parse notes JSON for the selected user
   const parsedNotes = useMemo(() => {
     if (!selectedUser?.notes) return [];
     try {
@@ -138,7 +144,7 @@ export default function UsersPage() {
       queryClient.invalidateQueries(["user", "trial", selectedUser.id]);
       message.success("Trial extended successfully");
       setIsTrialModalOpen(false);
-      refetch(); // Refresh user list
+      refetch();
     } catch (err) {
       message.error("Failed to extend trial");
     }
@@ -170,15 +176,36 @@ export default function UsersPage() {
     }
   };
 
-  // ✅ Added Open Notes Handler
+  // ✅ Open Group Modal
+  const handleOpenGroup = (user) => {
+    setSelectedUser(user);
+    groupForm.setFieldsValue({ group: user.group });
+    setIsGroupModalOpen(true);
+  };
+
+  // ✅ Submit Group Update
+  const handleGroupSubmit = async () => {
+    try {
+      const values = await groupForm.validateFields();
+      await updateGroup({
+        user_id: selectedUser.id,
+        group: values.group,
+      });
+      message.success("Group updated successfully");
+      setIsGroupModalOpen(false);
+      refetch();
+    } catch (err) {
+      if (!err.errorFields) message.error("Failed to update group");
+    }
+  };
+
   const handleOpenNotes = (user) => {
     setSelectedUser(user);
     setNewNoteText("");
-    setNewNoteDate(dayjs()); // Default to current date/time
+    setNewNoteDate(dayjs());
     setIsNotesModalOpen(true);
   };
 
-  // ✅ Added Submit Note Handler
   const handleAddNoteSubmit = async () => {
     if (!newNoteText.trim()) return message.warning("Note description cannot be empty.");
     try {
@@ -196,7 +223,6 @@ export default function UsersPage() {
       setNewNoteDate(dayjs());
       refetch();
 
-      // Update local state instantly so the user sees it in the open modal
       setSelectedUser(prev => ({
         ...prev,
         notes: [
@@ -452,27 +478,42 @@ export default function UsersPage() {
     {
       title: "Group",
       dataIndex: "group",
-      width: 100,
-      render: (value) => value ?? "--",
+      width: 120, // ✅ Widened for edit icon
+      render: (value, record) => (
+        <Space>
+          {value ?? "--"}
+          <Tooltip title="Edit Group">
+            <EditOutlined
+              style={{ color: "#1890ff", cursor: "pointer", marginLeft: 4 }}
+              onClick={() => handleOpenGroup(record)}
+            />
+          </Tooltip>
+        </Space>
+      ),
     },
     {
       title: "Action",
       key: "action",
       fixed: "right",
-      width: 100, // Widened slightly to accommodate 3 icons comfortably
+      width: 100,
       align: "center",
       render: (_, record) => (
         <Space size="small">
-          <div onClick={() => handleOpenTrial(record)}>
-            <ClockCircleOutlined style={{ cursor: "pointer", fontSize: 16 }} />
-          </div>
-          <div onClick={() => handleOpenFollowup(record)}>
-            <CalendarOutlined style={{ cursor: "pointer", fontSize: 16, color: record.followup ? "#fa8c16" : "inherit" }} />
-          </div>
-          {/* ✅ Added Notes Action Button */}
-          <div onClick={() => handleOpenNotes(record)}>
-            <ProfileOutlined style={{ cursor: "pointer", fontSize: 16, color: parsedNotes?.length ? "#1890ff" : "inherit" }} />
-          </div>
+          <Tooltip title="Extend Trial">
+            <div onClick={() => handleOpenTrial(record)}>
+              <ClockCircleOutlined style={{ cursor: "pointer", fontSize: 16 }} />
+            </div>
+          </Tooltip>
+          <Tooltip title="Follow-up Date">
+            <div onClick={() => handleOpenFollowup(record)}>
+              <CalendarOutlined style={{ cursor: "pointer", fontSize: 16, color: record.followup ? "#fa8c16" : "inherit" }} />
+            </div>
+          </Tooltip>
+          <Tooltip title="Notes">
+            <div onClick={() => handleOpenNotes(record)}>
+              <ProfileOutlined style={{ cursor: "pointer", fontSize: 16, color: parsedNotes?.length ? "#1890ff" : "inherit" }} />
+            </div>
+          </Tooltip>
         </Space >
       ),
     },
@@ -605,6 +646,23 @@ export default function UsersPage() {
         onOk={handleTrialSubmit}
       />
 
+      {/* ✅ Group Update Modal */}
+      <Modal
+        title="Update Group"
+        open={isGroupModalOpen}
+        onOk={handleGroupSubmit}
+        onCancel={() => setIsGroupModalOpen(false)}
+        confirmLoading={isGroupPending}
+        width={400}
+        okText="Save"
+      >
+        <Form form={groupForm} layout="vertical" style={{ marginTop: 10 }}>
+          <Form.Item label="Group Name" name="group">
+            <Input placeholder="Enter group name" allowClear />
+          </Form.Item>
+        </Form>
+      </Modal>
+
       <Modal
         title={<div style={{ display: 'flex', alignItems: 'center' }}><CalendarOutlined style={{ marginRight: 10, fontSize: 14 }} /> Set Follow-up Date</div>}
         open={isFollowupModalOpen}
@@ -628,7 +686,7 @@ export default function UsersPage() {
         </Form>
       </Modal>
 
-      {/* ✅ Added Notes Modal */}
+      {/* Notes Modal */}
       <Modal
         title={<div><ProfileOutlined style={{ marginRight: 8 }} /> User Notes</div>}
         open={isNotesModalOpen}
@@ -637,7 +695,6 @@ export default function UsersPage() {
         width={500}
       >
         <div style={{ marginTop: 20 }}>
-          {/* Form to add a new note */}
           <div style={{ marginBottom: 24, background: '#f9f9f9', padding: 16, borderRadius: 6 }}>
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Note Date & Time</label>
@@ -668,28 +725,23 @@ export default function UsersPage() {
             </div>
           </div>
 
-          {/* Timeline displaying existing notes */}
           <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: 10 }}>
             {parsedNotes.length > 0 ? (
               <Timeline
                 items={parsedNotes
-                  // Sort dynamically by note_date (fallback to generic 'date' if you have old ones)
                   .sort((a, b) => new Date(b.note_date || b.date) - new Date(a.note_date || a.date))
                   .map((note, idx) => ({
                     color: "blue",
                     children: (
                       <>
-                        {/* Selected Note Date */}
                         <div style={{ fontSize: 13, color: "#1890ff", fontWeight: 500, marginBottom: 2 }}>
                           {formatDateAndTime(note.note_date || note.date)}
                         </div>
-                        {/* Auto-generated DB Created At time */}
                         {note.created_at && (
                           <div style={{ fontSize: 11, color: "#bfbfbf", marginBottom: 6 }}>
                             Added: {formatDateAndTime(note.created_at)}
                           </div>
                         )}
-                        {/* Note text */}
                         <Text style={{ display: 'block', background: '#f5f5f5', padding: '8px 12px', borderRadius: 4, marginTop: 4 }}>
                           {note.description}
                         </Text>

@@ -52,6 +52,11 @@ const userFollowup = async (data: { user_id: number, followup: any }, access_tok
   return { data: response };
 };
 
+const updateGroupDetail = async (data: { user_id: number, group: any }, access_token: string) => {
+  const response = await callAPI("put", `${BASE_URL}/hedgex/admin/users/${data?.user_id}/group`, { group: data?.group }, access_token);
+  return { data: response };
+};
+
 const checkExpiry = async (access_token: string) => {
   const response = await callAPI("post", `${BASE_URL}/hedgex/admin/users/check-expiries`, {}, access_token);
   return { data: response };
@@ -88,4 +93,4 @@ const getUsers = async (
   return { data: response };
 };
 
-export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans, getCoupon, getPaymentHistory, getUserDetail, getTrialDetail, userFollowup, checkExpiry, userNote };
+export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans, getCoupon, getPaymentHistory, getUserDetail, getTrialDetail, userFollowup, checkExpiry, userNote, updateGroupDetail };
