@@ -247,7 +247,7 @@ export default function UsersPage() {
   const filters = useMemo(() => {
     const nextFilters = {};
 
-    if (debouncedEmailSearch) nextFilters.email = debouncedEmailSearch;
+    if (debouncedEmailSearch) nextFilters.search = { key: ["first_name", "last_name", "email", "phone_number"], value: debouncedEmailSearch };
     if (statusFilter) nextFilters.status = statusFilter;
     if (roleFilter) nextFilters.role = roleFilter;
     if (countryFilter) nextFilters.country = countryFilter;

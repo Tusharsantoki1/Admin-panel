@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { Tag, Dropdown, App, Tooltip } from "antd";
+import React, { useEffect, useMemo, useState } from "react";
+import { Tag, Dropdown, App, Tooltip, DatePicker, Space, Typography } from "antd";
 import {
   DeleteOutlined,
   MoreOutlined,
@@ -14,14 +14,35 @@ import { useQueryClient } from "@tanstack/react-query";
 export default function History() {
   // Note: the prop 'users' should ideally be 'historyData' now based on your JSON
   const { data } = usePaymentHistoryList();
-  console.log(data);
 
   const queryClient = useQueryClient();
+  const [dateRange, setDateRange] = useState(null);
+  console.log(dateRange);
 
   useEffect(() => {
     if (!data) return
     queryClient.setQueryData(['title'], { title: 'Payment History', count: data?.data?.length || '' })
-  }, [data])
+  }, [data, queryClient]);
+
+  const filteredData = useMemo(() => {
+    let result = data?.data || [];
+    if (dateRange && dateRange[0] && dateRange[1]) {
+      const startDate = dateRange[0].startOf("day").valueOf();
+      const endDate = dateRange[1].endOf("day").valueOf();
+
+      result = result.filter((item) => {
+        if (!item.created_at) return false;
+        const itemDate = new Date(item.created_at).getTime();
+        return itemDate >= startDate && itemDate <= endDate;
+      });
+    }
+    return result;
+  }, [data, dateRange]);
+
+  const totalAmountSum = useMemo(() => {
+    return filteredData.reduce((sum, item) => sum + (parseFloat(item.totalAmount) || 0), 0);
+  }, [filteredData]);
+
   const columns = [
     {
       title: "First Name",
@@ -182,27 +203,51 @@ export default function History() {
   ];
 
   return (
-    <CommonTableLayout
-      columns={columns}
-      dataSource={data?.data || []} // Ensure this prop contains the transaction data
-      rowKey="id"
-      searchFields={["order_id", "paymentId", "couponCode", "paymentStatus", "userId"]}
-      searchPlaceholder="Search by Order, Payment ID or Coupon..."
-      exportFilename="payment_history"
-      exportHeaders={[
-        "ID", "User ID", "First Name", "Last Name", "Email", "Order ID", "Payment ID", "Status", "Method",
-        "Subtotal", "Tax", "Discount", "Total", "After Discount",
-        "Plan ID", "Period", "Days", "Addon Days", "Brokers",
-        "Coupon Code", "Coupon Value", "Offer Type", "Txn Type",
-        "Activation Date", "Expiry Date", "Created At", "Updated At"
-      ]}
-      exportMapper={(u) => [
-        u.id, u.userId, u?.user?.first_name, u?.user?.last_name, u?.user?.email, u.order_id, u.paymentId, u.paymentStatus, u.paymentMethod,
-        u.subTotalAmount, u.taxAmount, u.discountAmount, u.totalAmount, u.afterDiscountAmount,
-        u.planId, u.subscriptionPeriod, u.subscriptionDays, u.addonDays, u.brokers,
-        u.couponCode, u.couponValue, u.offerType, u.transactionType,
-        u.activationDate, u.expiryDate, u.created_at, u.updated_at
-      ]}
-    />
+    <>
+      <CommonTableLayout
+        columns={columns}
+        dataSource={filteredData}
+        rowKey="id"
+        toolbarExtra={
+          <Space wrap>
+            <DatePicker.RangePicker
+              onChange={(dates) => setDateRange(dates)}
+              allowClear
+            />
+            {dateRange && <Typography.Text strong style={{ color: "#1677ff", marginLeft: 8 }}>
+              Total Amount: ₹{totalAmountSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </Typography.Text>}
+          </Space>
+        }
+        searchFields={["order_id", "paymentId", "couponCode", "paymentStatus", "userId", "user.email", "user.first_name", "user.last_name"]}
+        searchPlaceholder="Search by Order, Payment ID or Coupon..."
+        exportFilename="payment_history"
+        exportHeaders={[
+          "ID", "User ID", "First Name", "Last Name", "Email", "Order ID", "Payment ID", "Status", "Method",
+          "Subtotal", "Tax", "Discount", "Total", "After Discount",
+          "Plan ID", "Period", "Days", "Addon Days", "Brokers",
+          "Coupon Code", "Coupon Value", "Offer Type", "Txn Type",
+          "Activation Date", "Expiry Date", "Created At", "Updated At"
+        ]}
+        exportMapper={(u) => [
+          u.id, u.userId, u?.user?.first_name, u?.user?.last_name, u?.user?.email, u.order_id, u.paymentId, u.paymentStatus, u.paymentMethod,
+          u.subTotalAmount, u.taxAmount, u.discountAmount, u.totalAmount, u.afterDiscountAmount,
+          u.planId, u.subscriptionPeriod, u.subscriptionDays, u.addonDays, u.brokers,
+          u.couponCode, u.couponValue, u.offerType, u.transactionType,
+          u.activationDate, u.expiryDate, u.created_at, u.updated_at
+        ]}
+      />
+      <style>{`
+        .ant-picker {
+          height: 28px !important;
+          width: 250px !important;
+          padding-left: 5px;
+          padding-right: 5px;
+        }
+        .ant-picker-input {
+          height: 28px !important;
+        }
+      `}</style>
+    </>
   );
 }

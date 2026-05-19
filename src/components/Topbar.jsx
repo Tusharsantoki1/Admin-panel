@@ -41,7 +41,7 @@ export default function Topbar() {
   const { data: usersResponse, isFetching } = useUsersList({
     page: 1,
     limit: 25, // Limit results for the dropdown
-    ...(debouncedSearch && { filters: { email: debouncedSearch } }),
+    ...(debouncedSearch && { filters: { search: { key: ["first_name", "last_name", "email", "phone_number"], value: debouncedSearch } } }),
     sort: "desc",
   });
 

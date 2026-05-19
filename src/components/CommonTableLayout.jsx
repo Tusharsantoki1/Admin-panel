@@ -118,9 +118,11 @@ export default function CommonTableLayout({
     const q = searchQuery.toLowerCase();
     return dataSource.filter((row) =>
       searchFields.some((field) =>
-        String(row[field] ?? "")
-          .toLowerCase()
-          .includes(q),
+        field.includes(".")
+          ? String(row[field.split(".")[0]][field.split(".")[1]] ?? "").toLowerCase().includes(q)
+          : String(row[field] ?? "")
+            .toLowerCase()
+            .includes(q),
       ),
     );
   }, [dataSource, disableClientSearch, searchQuery, searchFields]);
