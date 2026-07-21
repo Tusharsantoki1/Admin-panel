@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Tag, Space, Dropdown, App, Select, Button, Tooltip, Form, InputNumber, Modal, DatePicker, Input, Timeline, Typography } from "antd";
+import { Tag, Space, Dropdown, App, Select, Button, Tooltip, Form, InputNumber, Modal, DatePicker, Input, Timeline, Typography, Popover, Badge as AntBadge, Flex, Checkbox, List, Segmented } from "antd";
 import {
   CheckCircleFilled,
   CloseCircleFilled,
@@ -9,10 +9,20 @@ import {
   ReloadOutlined,
   CalendarOutlined,
   ProfileOutlined,
-  EditOutlined, // ✅ Added Edit icon for Group
+  EditOutlined,
+  SearchOutlined,
+  FilterOutlined,
+  SettingOutlined,
+  UndoOutlined,
+  HolderOutlined,
+  TableOutlined,
+  AppstoreOutlined,
+  UpOutlined,
+  DownOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import CommonTableLayout from "../components/CommonTableLayout";
+import KanbanUsers from "./KanbanUsers";
 import { useUsersList } from "../hooks/useUsersList";
 import { useTrialExtend } from "../hooks/useTrialExtend";
 import { useUpdateFollowup } from "../hooks/useUpdateFollowup";
@@ -39,6 +49,117 @@ export const normalizeLabel = (value) => {
     .trim()
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+export const DEFAULT_KANBAN_STAGES = [
+  { value: "NC", label: "NC (Not Contacted)", color: "default", visible: true },
+  { value: "A2C", label: "A2C (Attempt to Contact)", color: "orange", visible: true },
+  { value: "Contacted", label: "Contacted", color: "blue", visible: true },
+  { value: "DS", label: "DS (Demo Scheduled)", color: "purple", visible: true },
+  { value: "DD", label: "DD (Demo Done)", color: "cyan", visible: true },
+  { value: "Payment Done", label: "Payment Done", color: "green", visible: true },
+  { value: "Lost", label: "Lost", color: "red", visible: true },
+  { value: "OLD", label: "OLD (Old Lead)", color: "geekblue", visible: true },
+];
+
+export const LEAD_STAGES = DEFAULT_KANBAN_STAGES;
+
+const KANBAN_STORAGE_KEY = "hedgex_kanban_stages_config";
+
+export const getSavedKanbanStages = () => {
+  try {
+    const saved = localStorage.getItem(KANBAN_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const savedValues = new Set(parsed.map((s) => s.value));
+        const merged = [...parsed];
+        DEFAULT_KANBAN_STAGES.forEach((stage) => {
+          if (!savedValues.has(stage.value)) {
+            merged.push(stage);
+          }
+        });
+        return merged;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load kanban stages config", e);
+  }
+  return DEFAULT_KANBAN_STAGES;
+};
+
+export const renderLeadStatusTag = (status) => {
+  const matched = LEAD_STAGES.find((s) => s.value === status) || LEAD_STAGES[0];
+  return (
+    <Tag color={matched.color} style={{ fontSize: 11, fontWeight: 600 }}>
+      {matched.value}
+    </Tag>
+  );
+};
+
+export const hasUserNotes = (notes) => {
+  if (!notes) return false;
+  if (Array.isArray(notes)) return notes.length > 0;
+  if (typeof notes === "string") {
+    const trimmed = notes.trim();
+    if (!trimmed || trimmed === "[]" || trimmed === "null") return false;
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) && parsed.length > 0;
+    } catch (e) {
+      return false;
+    }
+  }
+  return false;
+};
+
+export const DEFAULT_COLUMN_KEYS = [
+  { key: "created_at", label: "Created Date", visible: true },
+  { key: "first_name", label: "First Name", visible: true },
+  { key: "last_name", label: "Last Name", visible: true },
+  { key: "email", label: "Email", visible: true },
+  { key: "phone_number", label: "Phone", visible: true },
+  { key: "status", label: "Status", visible: true },
+  { key: "country", label: "Country", visible: true },
+  { key: "lead_status", label: "Lead Status", visible: true },
+  { key: "group", label: "Group", visible: true },
+  { key: "city", label: "City", visible: true },
+  { key: "activateDate", label: "Activate Date", visible: true },
+  { key: "expiryDate", label: "Expiry Date", visible: true },
+  { key: "followup", label: "Follow Up Date", visible: true },
+  { key: "state", label: "State", visible: true },
+  { key: "planId", label: "Plan ID", visible: true },
+  { key: "isMobileVerified", label: "Mobile Verified", visible: true },
+  { key: "isEmailVerified", label: "Email Verified", visible: true },
+  { key: "permissionId", label: "Permission ID", visible: true },
+  { key: "broker_addon", label: "Broker Addon", visible: true },
+  { key: "active_broker", label: "Active Broker", visible: true },
+  { key: "role", label: "Role", visible: true },
+  { key: "action", label: "Actions", visible: true, locked: true },
+];
+
+const STORAGE_KEY = "hedgex_users_columns_config";
+
+const getSavedColumnsConfig = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const savedKeys = new Set(parsed.map((col) => col.key));
+        const merged = [...parsed];
+        DEFAULT_COLUMN_KEYS.forEach((col) => {
+          if (!savedKeys.has(col.key)) {
+            merged.push(col);
+          }
+        });
+        return merged;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load column config from localStorage", e);
+  }
+  return DEFAULT_COLUMN_KEYS;
 };
 
 const formatDate = (value) => {
@@ -90,6 +211,7 @@ export const renderDateTimeWithHover = (value) => (
 export default function UsersPage() {
   const { message, modal } = App.useApp();
   const [page, setPage] = useState(1);
+  const [viewType, setViewType] = useState("table"); // "table" | "kanban"
   const [form] = Form.useForm();
   const [followupForm] = Form.useForm();
   const [groupForm] = Form.useForm(); // ✅ Added Group Form
@@ -102,7 +224,248 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState(undefined);
   const [countryFilter, setCountryFilter] = useState(undefined);
   const [viewModeFilter, setViewModeFilter] = useState(undefined);
+  const [groupFilter, setGroupFilter] = useState(undefined);
+  const [leadStatusFilter, setLeadStatusFilter] = useState(undefined);
   const [sortOrder, setSortOrder] = useState("desc");
+
+  // Popover temporary filter states
+  const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
+  const [tempStatusFilter, setTempStatusFilter] = useState(undefined);
+  const [tempLeadStatusFilter, setTempLeadStatusFilter] = useState(undefined);
+  const [tempGroupFilter, setTempGroupFilter] = useState(undefined);
+  const [tempViewModeFilter, setTempViewModeFilter] = useState(undefined);
+
+  // Column customization states
+  const [columnsConfig, setColumnsConfig] = useState(getSavedColumnsConfig);
+  const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
+  const [draggedItemIndex, setDraggedItemIndex] = useState(null);
+
+  // Kanban Stages customization states
+  const [kanbanStagesConfig, setKanbanStagesConfig] = useState(getSavedKanbanStages);
+  const [isKanbanModalOpen, setIsKanbanModalOpen] = useState(false);
+  const [draggedKanbanIndex, setDraggedKanbanIndex] = useState(null);
+
+  const updateKanbanStagesConfig = (newConfig) => {
+    setKanbanStagesConfig(newConfig);
+    try {
+      localStorage.setItem(KANBAN_STORAGE_KEY, JSON.stringify(newConfig));
+    } catch (e) {
+      console.error("Failed to save kanban stages config", e);
+    }
+  };
+
+  const handleKanbanDragStart = (e, index) => {
+    setDraggedKanbanIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
+  };
+
+  const handleKanbanDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleKanbanDrop = (e, targetIndex) => {
+    e.preventDefault();
+    const fromIndexStr = e.dataTransfer.getData("text/plain");
+    const fromIndex = fromIndexStr !== "" ? parseInt(fromIndexStr, 10) : draggedKanbanIndex;
+    if (fromIndex === null || isNaN(fromIndex) || fromIndex === targetIndex) return;
+    const newConfig = [...kanbanStagesConfig];
+    const [draggedItem] = newConfig.splice(fromIndex, 1);
+    newConfig.splice(targetIndex, 0, draggedItem);
+    updateKanbanStagesConfig(newConfig);
+    setDraggedKanbanIndex(null);
+  };
+
+  const moveKanbanStageUp = (index) => {
+    if (index <= 0) return;
+    const newConfig = [...kanbanStagesConfig];
+    const temp = newConfig[index - 1];
+    newConfig[index - 1] = newConfig[index];
+    newConfig[index] = temp;
+    updateKanbanStagesConfig(newConfig);
+  };
+
+  const moveKanbanStageDown = (index) => {
+    if (index >= kanbanStagesConfig.length - 1) return;
+    const newConfig = [...kanbanStagesConfig];
+    const temp = newConfig[index + 1];
+    newConfig[index + 1] = newConfig[index];
+    newConfig[index] = temp;
+    updateKanbanStagesConfig(newConfig);
+  };
+
+  const toggleKanbanStageVisibility = (value) => {
+    const newConfig = kanbanStagesConfig.map((stage) =>
+      stage.value === value ? { ...stage, visible: stage.visible === false } : stage
+    );
+    updateKanbanStagesConfig(newConfig);
+  };
+
+  const resetKanbanStagesConfig = () => {
+    updateKanbanStagesConfig(DEFAULT_KANBAN_STAGES);
+  };
+
+  const updateColumnsConfig = (newConfig) => {
+    setColumnsConfig(newConfig);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newConfig));
+    } catch (e) {
+      console.error("Failed to save column config to localStorage", e);
+    }
+  };
+
+  const handleDragStart = (e, index) => {
+    setDraggedItemIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedItemIndex === null || draggedItemIndex === targetIndex) return;
+    const newConfig = [...columnsConfig];
+    const [draggedItem] = newConfig.splice(draggedItemIndex, 1);
+    newConfig.splice(targetIndex, 0, draggedItem);
+    updateColumnsConfig(newConfig);
+    setDraggedItemIndex(null);
+  };
+
+  const toggleColumnVisibility = (key) => {
+    const newConfig = columnsConfig.map((col) =>
+      col.key === key ? { ...col, visible: !col.visible } : col
+    );
+    updateColumnsConfig(newConfig);
+  };
+
+  const resetColumnsConfig = () => {
+    updateColumnsConfig(DEFAULT_COLUMN_KEYS);
+  };
+
+  const handleOpenFilterPopover = (open) => {
+    if (open) {
+      setTempStatusFilter(statusFilter);
+      setTempLeadStatusFilter(leadStatusFilter);
+      setTempGroupFilter(groupFilter);
+      setTempViewModeFilter(viewModeFilter);
+    }
+    setIsFilterPopoverOpen(open);
+  };
+
+  const handleApplyPopoverFilters = () => {
+    setStatusFilter(tempStatusFilter);
+    setLeadStatusFilter(tempLeadStatusFilter);
+    setGroupFilter(tempGroupFilter);
+    setViewModeFilter(tempViewModeFilter);
+    setPage(1);
+    setIsFilterPopoverOpen(false);
+  };
+
+  const handleResetPopoverFilters = () => {
+    setTempStatusFilter(undefined);
+    setTempLeadStatusFilter(undefined);
+    setTempGroupFilter(undefined);
+    setTempViewModeFilter(undefined);
+    setStatusFilter(undefined);
+    setLeadStatusFilter(undefined);
+    setGroupFilter(undefined);
+    setViewModeFilter(undefined);
+    setPage(1);
+    setIsFilterPopoverOpen(false);
+  };
+
+  const activeFiltersCount =
+    (statusFilter ? 1 : 0) +
+    (leadStatusFilter ? 1 : 0) +
+    (groupFilter ? 1 : 0) +
+    (viewModeFilter ? 1 : 0);
+
+  const filterPopoverContent = (
+    <div style={{ width: 280, padding: "4px 0" }}>
+      <div style={{ fontWeight: 600, fontSize: 13, color: "#111", marginBottom: 12, borderBottom: "1px solid #f0f0f0", paddingBottom: 6 }}>
+        Filter Leads
+      </div>
+
+      <Space direction="vertical" style={{ width: "100%" }} size={12}>
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#666", marginBottom: 4 }}>
+            Lead Stage
+          </label>
+          <Select
+            allowClear
+            placeholder="All Lead Stages"
+            value={tempLeadStatusFilter}
+            onChange={(val) => setTempLeadStatusFilter(val)}
+            style={{ width: "100%" }}
+            options={LEAD_STAGES.map((s) => ({ value: s.value, label: s.label }))}
+          />
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#666", marginBottom: 4 }}>
+            Group
+          </label>
+          <Input
+            allowClear
+            placeholder="Search / enter group name"
+            value={tempGroupFilter}
+            onChange={(e) => setTempGroupFilter(e.target.value ? e.target.value : undefined)}
+            style={{ width: "100%" }}
+          />
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#666", marginBottom: 4 }}>
+            Status
+          </label>
+          <Select
+            allowClear
+            placeholder="All Statuses"
+            value={tempStatusFilter}
+            onChange={(val) => setTempStatusFilter(val)}
+            style={{ width: "100%" }}
+            options={[
+              { label: "Active", value: "active" },
+              { label: "Trial", value: "trial" },
+              { label: "Expired", value: "expired" },
+            ]}
+          />
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#666", marginBottom: 4 }}>
+            Monitoring
+          </label>
+          <Select
+            allowClear
+            placeholder="All Monitoring"
+            value={tempViewModeFilter}
+            onChange={(val) => setTempViewModeFilter(val)}
+            style={{ width: "100%" }}
+            options={[
+              { value: "expire_10", label: "Expire in 10 days" },
+              { value: "expired_30", label: "Expired in 30 days" },
+              { value: "followup", label: "Follow up date" },
+            ]}
+          />
+        </div>
+
+        <Flex justify="space-between" align="center" style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid #f0f0f0" }}>
+          <Button size="small" onClick={handleResetPopoverFilters}>
+            Reset
+          </Button>
+          <Button size="small" type="primary" onClick={handleApplyPopoverFilters}>
+            Confirm
+          </Button>
+        </Flex>
+      </Space>
+    </div>
+  );
 
   const { mutateAsync: trialExtend, isPending } = useTrialExtend();
   const { mutateAsync: updateFollowup, isPending: isFollowupPending } = useUpdateFollowup();
@@ -116,6 +479,7 @@ export default function UsersPage() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false); // ✅ Group Modal State
   const [newNoteText, setNewNoteText] = useState("");
   const [newNoteDate, setNewNoteDate] = useState(dayjs());
+  const [newNoteLeadStatus, setNewNoteLeadStatus] = useState("NC");
   const [selectedUser, setSelectedUser] = useState(null);
 
   const { data: trial_activates, isLoading: trial_history_loading } = useTrialdetail(selectedUser?.id);
@@ -203,6 +567,17 @@ export default function UsersPage() {
     setSelectedUser(user);
     setNewNoteText("");
     setNewNoteDate(dayjs());
+    // Extract current lead status if available
+    let currentStatus = user?.lead_status;
+    if (!currentStatus && user?.notes) {
+      try {
+        const notesArr = typeof user.notes === 'string' ? JSON.parse(user.notes) : user.notes;
+        if (Array.isArray(notesArr) && notesArr.length > 0) {
+          currentStatus = notesArr[notesArr.length - 1]?.lead_status;
+        }
+      } catch (e) { }
+    }
+    setNewNoteLeadStatus(currentStatus || "NC");
     setIsNotesModalOpen(true);
   };
 
@@ -216,6 +591,7 @@ export default function UsersPage() {
         user_id: selectedUser.id,
         description: newNoteText,
         note_date: formattedDate,
+        lead_status: newNoteLeadStatus,
       });
 
       message.success("Note added successfully");
@@ -225,9 +601,16 @@ export default function UsersPage() {
 
       setSelectedUser(prev => ({
         ...prev,
+        lead_status: newNoteLeadStatus,
         notes: [
           ...parsedNotes,
-          { note_date: formattedDate, description: newNoteText, created_at: currentTime }
+          {
+            note_date: formattedDate,
+            description: newNoteText,
+            lead_status: newNoteLeadStatus,
+            created_at: currentTime,
+            updated_at: currentTime
+          }
         ]
       }));
     } catch (err) {
@@ -247,14 +630,44 @@ export default function UsersPage() {
   const filters = useMemo(() => {
     const nextFilters = {};
 
-    if (debouncedEmailSearch) nextFilters.search = { key: ["first_name", "last_name", "email", "phone_number"], value: debouncedEmailSearch };
+    if (debouncedEmailSearch) nextFilters.search = { key: ["first_name", "last_name", "email", "phone_number", "group"], value: debouncedEmailSearch };
     if (statusFilter) nextFilters.status = statusFilter;
     if (roleFilter) nextFilters.role = roleFilter;
     if (countryFilter) nextFilters.country = countryFilter;
     if (viewModeFilter) nextFilters.view_mode = viewModeFilter;
+    if (groupFilter) nextFilters.group = groupFilter;
+    if (leadStatusFilter) nextFilters.lead_status = leadStatusFilter;
 
     return nextFilters;
-  }, [countryFilter, debouncedEmailSearch, roleFilter, statusFilter, viewModeFilter]);
+  }, [countryFilter, debouncedEmailSearch, roleFilter, statusFilter, viewModeFilter, groupFilter, leadStatusFilter]);
+
+  const handleTableChange = (paginationInfo, tableFilters) => {
+    if (tableFilters.status) {
+      setStatusFilter(tableFilters.status[0] || undefined);
+    } else {
+      setStatusFilter(undefined);
+    }
+
+    if (tableFilters.lead_status) {
+      setLeadStatusFilter(tableFilters.lead_status[0] || undefined);
+    } else {
+      setLeadStatusFilter(undefined);
+    }
+
+    if (tableFilters.group) {
+      setGroupFilter(tableFilters.group[0] || undefined);
+    } else {
+      setGroupFilter(undefined);
+    }
+
+    if (tableFilters.view_mode) {
+      setViewModeFilter(tableFilters.view_mode[0] || undefined);
+    } else {
+      setViewModeFilter(undefined);
+    }
+
+    setPage(1);
+  };
 
   const { data: usersResponse, isLoading, isFetching, refetch } = useUsersList({
     page,
@@ -270,6 +683,14 @@ export default function UsersPage() {
 
   const users = usersResponse?.data || [];
   const pagination = usersResponse?.pagination || {};
+
+  const availableGroups = useMemo(() => {
+    const set = new Set();
+    users.forEach((u) => {
+      if (u.group) set.add(u.group);
+    });
+    return Array.from(set).map((g) => ({ label: g, value: g }));
+  }, [users]);
 
   const handleTrial = (user) => {
     form.setFieldsValue({ days: 15, brokers: 1 });
@@ -349,15 +770,18 @@ export default function UsersPage() {
     setRoleFilter(undefined);
     setCountryFilter(undefined);
     setViewModeFilter(undefined);
+    setGroupFilter(undefined);
+    setLeadStatusFilter(undefined);
     setSortOrder("desc");
     setPage(1);
     setPageSize(25);
   };
 
-  const columns = [
+  const rawColumns = useMemo(() => [
     {
       title: "First Name",
       dataIndex: "first_name",
+      key: "first_name",
       width: 120,
       ellipsis: true,
       render: (value) => normalizeLabel(value),
@@ -365,12 +789,17 @@ export default function UsersPage() {
     {
       title: "Last Name",
       dataIndex: "last_name",
+      key: "last_name",
       width: 120,
       ellipsis: true,
       render: (value) => normalizeLabel(value),
     },
     {
-      title: "Email", dataIndex: "email", width: 220, ellipsis: true,
+      title: "Email",
+      dataIndex: "email",
+      key: "email",
+      width: 220,
+      ellipsis: true,
       render: (text, record) => (
         <Link
           to={`/user/${record.id}`}
@@ -378,12 +807,13 @@ export default function UsersPage() {
         >
           {text}
         </Link>
-      )
+      ),
     },
-    { title: "Phone", dataIndex: "phone_number", width: 150, ellipsis: true },
+    { title: "Phone", dataIndex: "phone_number", key: "phone_number", width: 150, ellipsis: true },
     {
       title: "Status",
       dataIndex: "status",
+      key: "status",
       width: 100,
       render: (status) => {
         const value = String(status || "").toLowerCase();
@@ -394,6 +824,7 @@ export default function UsersPage() {
     {
       title: "Role",
       dataIndex: "role",
+      key: "role",
       width: 100,
       render: (role) => (
         <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>
@@ -404,14 +835,16 @@ export default function UsersPage() {
     {
       title: "Country",
       dataIndex: "country",
+      key: "country",
       width: 120,
       ellipsis: true,
       render: (value) => normalizeLabel(value),
     },
-    { title: "State", dataIndex: "state", width: 110, ellipsis: true },
+    { title: "State", dataIndex: "state", key: "state", width: 110, ellipsis: true },
     {
       title: "City",
       dataIndex: "city",
+      key: "city",
       width: 110,
       ellipsis: true,
       render: (value) => normalizeLabel(value),
@@ -419,31 +852,36 @@ export default function UsersPage() {
     {
       title: "Created",
       dataIndex: "created_at",
+      key: "created_at",
       width: 120,
       render: renderDateWithHover,
     },
     {
       title: "Activate",
       dataIndex: "activateDate",
+      key: "activateDate",
       width: 120,
       render: renderDateWithHover,
     },
     {
       title: "Expiry",
       dataIndex: "expiryDate",
+      key: "expiryDate",
       width: 120,
       render: renderDateWithHover,
     },
     {
       title: "Follow Up",
       dataIndex: "followup",
+      key: "followup",
       width: 120,
       render: renderDateWithHover,
     },
-    { title: "Plan ID", dataIndex: "planId", width: 90, render: (value) => value ?? "--" },
+    { title: "Plan ID", dataIndex: "planId", key: "planId", width: 90, render: (value) => value ?? "--" },
     {
       title: "Mob Ver",
       dataIndex: "isMobileVerified",
+      key: "isMobileVerified",
       width: 80,
       align: "center",
       render: (value) => <StatusIcon value={value} />,
@@ -451,6 +889,7 @@ export default function UsersPage() {
     {
       title: "Email Ver",
       dataIndex: "isEmailVerified",
+      key: "isEmailVerified",
       width: 80,
       align: "center",
       render: (value) => <StatusIcon value={value} />,
@@ -458,12 +897,14 @@ export default function UsersPage() {
     {
       title: "Perm ID",
       dataIndex: "permissionId",
+      key: "permissionId",
       width: 100,
       render: (value) => value ?? "--",
     },
     {
       title: "B. Addon",
       dataIndex: "broker_addon",
+      key: "broker_addon",
       width: 90,
       align: "center",
       render: (value) => (value ? "Yes" : "No"),
@@ -471,14 +912,35 @@ export default function UsersPage() {
     {
       title: "B. Active",
       dataIndex: "active_broker",
+      key: "active_broker",
       width: 90,
       align: "center",
       render: (value) => (value ? "Yes" : "No"),
     },
     {
+      title: "Lead Status",
+      dataIndex: "lead_status",
+      key: "lead_status",
+      width: 140,
+      render: (value, record) => {
+        let status = value;
+        if (!status && record.notes) {
+          try {
+            const parsed = typeof record.notes === 'string' ? JSON.parse(record.notes) : record.notes;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const latest = parsed[parsed.length - 1];
+              status = latest?.lead_status;
+            }
+          } catch (e) { }
+        }
+        return renderLeadStatusTag(status || "NC");
+      },
+    },
+    {
       title: "Group",
       dataIndex: "group",
-      width: 120, // ✅ Widened for edit icon
+      key: "group",
+      width: 130,
       render: (value, record) => (
         <Space>
           {value ?? "--"}
@@ -497,27 +959,55 @@ export default function UsersPage() {
       fixed: "right",
       width: 100,
       align: "center",
-      render: (_, record) => (
-        <Space size="small">
-          <Tooltip title="Extend Trial">
-            <div onClick={() => handleOpenTrial(record)}>
-              <ClockCircleOutlined style={{ cursor: "pointer", fontSize: 16 }} />
-            </div>
-          </Tooltip>
-          <Tooltip title="Follow-up Date">
-            <div onClick={() => handleOpenFollowup(record)}>
-              <CalendarOutlined style={{ cursor: "pointer", fontSize: 16, color: record.followup ? "#fa8c16" : "inherit" }} />
-            </div>
-          </Tooltip>
-          <Tooltip title="Notes">
-            <div onClick={() => handleOpenNotes(record)}>
-              <ProfileOutlined style={{ cursor: "pointer", fontSize: 16, color: parsedNotes?.length ? "#1890ff" : "inherit" }} />
-            </div>
-          </Tooltip>
-        </Space >
-      ),
+      render: (_, record) => {
+        const hasNotes = hasUserNotes(record.notes);
+        return (
+          <Space size="small">
+            <Tooltip title="Extend Trial">
+              <div onClick={() => handleOpenTrial(record)}>
+                <ClockCircleOutlined style={{ cursor: "pointer", fontSize: 16 }} />
+              </div>
+            </Tooltip>
+            <Tooltip title="Follow-up Date">
+              <div onClick={() => handleOpenFollowup(record)}>
+                <CalendarOutlined style={{ cursor: "pointer", fontSize: 16, color: record.followup ? "#fa8c16" : "inherit" }} />
+              </div>
+            </Tooltip>
+            <Tooltip title={hasNotes ? "View Notes (Has Notes)" : "Add Note (No Notes)"}>
+              <div onClick={() => handleOpenNotes(record)}>
+                <ProfileOutlined
+                  style={{
+                    cursor: "pointer",
+                    fontSize: 16,
+                    color: hasNotes ? "#1890ff" : "#bfbfbf",
+                  }}
+                />
+              </div>
+            </Tooltip>
+          </Space>
+        );
+      },
     },
-  ];
+  ], [handleOpenTrial, handleOpenFollowup, handleOpenNotes, handleOpenGroup]);
+
+  const columnsMap = useMemo(() => {
+    const map = {};
+    rawColumns.forEach((col) => {
+      const k = col.key || col.dataIndex;
+      map[k] = col;
+    });
+    return map;
+  }, [rawColumns]);
+
+  const activeColumns = useMemo(() => {
+    const cols = [];
+    columnsConfig.forEach((cfg) => {
+      if (cfg.visible !== false && columnsMap[cfg.key]) {
+        cols.push(columnsMap[cfg.key]);
+      }
+    });
+    return cols;
+  }, [columnsConfig, columnsMap]);
 
   const checkExpiry = async () => {
     try {
@@ -529,112 +1019,172 @@ export default function UsersPage() {
     }
   };
 
-  return (
-    <>
-      <CommonTableLayout
-        columns={columns}
-        dataSource={users}
-        rowKey="id"
-        loading={isLoading || isFetching}
-        pageSize={pageSize}
-        disableClientSearch
-        searchValue={emailSearch}
-        onSearchChange={setEmailSearch}
-        searchPlaceholder="Search by email..."
-        pagination={{
-          current: pagination.page || page,
-          pageSize: pagination.limit || pageSize,
-          total: pagination.total || 0,
-          size: "small",
-          position: ["bottomRight"],
-          showSizeChanger: true,
-          pageSizeOptions: [10, 25, 50, 100],
-          onChange: (nextPage, nextPageSize) => {
-            setPage(nextPage);
-            if (nextPageSize !== pageSize) {
-              setPageSize(nextPageSize);
-              if (nextPage !== 1) setPage(1);
-            }
-          },
-        }}
-        toolbarExtra={
-          <Space wrap>
-            <Select
-              allowClear
-              placeholder="Monitoring"
-              style={{ width: 160 }}
-              value={viewModeFilter}
-              onChange={(value) => {
-                setViewModeFilter(value);
-                setPage(1);
-              }}
-              options={[
-                { value: "expire_10", label: "Expire in 10 days" },
-                { value: "expired_30", label: "Expired in 30 days" },
-                { value: "followup", label: "Follow up date" },
-              ]}
-            />
-            <Select
-              allowClear
-              placeholder="Status"
-              style={{ width: 120 }}
-              value={statusFilter}
-              onChange={(value) => {
-                setStatusFilter(value);
-                setPage(1);
-              }}
-              options={[
-                { label: "Active", value: "active" },
-                { label: "Trial", value: "trial" },
-                { label: "Expired", value: "expired" },
-              ]}
-            />
-            <Select
-              placeholder="Sort"
-              style={{ width: 140 }}
-              value={sortOrder}
-              onChange={(value) => {
-                setSortOrder(value);
-                setPage(1);
-              }}
-              options={[
-                { label: "Newest first", value: "desc" },
-                { label: "Oldest first", value: "asc" },
-              ]}
-            />
-            <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
-              Refresh
-            </Button>
-            <Button onClick={clearFilters}>Reset</Button>
-            <Button loading={isExpiryPending} onClick={checkExpiry}>Expiry Check</Button>
-          </Space>
-        }
-        exportFilename="users"
-        exportHeaders={[
-          "ID",
-          "First Name",
-          "Last Name",
-          "Email",
-          "Phone",
-          "Status",
-          "Role",
-          "Country",
-          "City",
-          "Created At",
-        ]}
-        exportMapper={(user) => [
-          user.id,
-          user.first_name,
-          user.last_name,
-          user.email,
-          user.phone_number,
-          user.status,
-          user.role,
-          user.country,
-          user.city,
-          user.created_at,
+  const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0);
+
+  const kanbanGlobalFilters = useMemo(() => ({
+    ...(statusFilter && { status: statusFilter }),
+    ...(groupFilter && { group: groupFilter }),
+    ...(viewModeFilter && { view_mode: viewModeFilter }),
+  }), [statusFilter, groupFilter, viewModeFilter]);
+
+  const handleRefreshAll = () => {
+    if (viewType === "table") {
+      refetch();
+    } else {
+      setKanbanRefreshKey((prev) => prev + 1);
+    }
+  };
+
+  const toolbarExtraContent = (
+    <Space wrap>
+      <Segmented
+        value={viewType}
+        onChange={(val) => setViewType(val)}
+        options={[
+          { value: "table", icon: <TableOutlined />, label: "Table" },
+          { value: "kanban", icon: <AppstoreOutlined />, label: "Kanban" },
         ]}
       />
+      <Popover
+        content={filterPopoverContent}
+        trigger="click"
+        open={isFilterPopoverOpen}
+        onOpenChange={handleOpenFilterPopover}
+        placement="bottomLeft"
+      >
+        <AntBadge count={activeFiltersCount} size="small" offset={[-2, 2]}>
+          <Button icon={<FilterOutlined />}>
+            Filters
+          </Button>
+        </AntBadge>
+      </Popover>
+      <Button
+        icon={<SettingOutlined />}
+        onClick={() => {
+          if (viewType === "table") {
+            setIsColumnModalOpen(true);
+          } else {
+            setIsKanbanModalOpen(true);
+          }
+        }}
+      >
+        {viewType === "table" ? "Columns" : "Kanban Stages"}
+      </Button>
+      <Select
+        placeholder="Sort"
+        style={{ width: 140 }}
+        value={sortOrder}
+        onChange={(value) => {
+          setSortOrder(value);
+          setPage(1);
+        }}
+        options={[
+          { label: "Newest first", value: "desc" },
+          { label: "Oldest first", value: "asc" },
+        ]}
+      />
+      <Button icon={<ReloadOutlined />} onClick={handleRefreshAll}>
+        Refresh
+      </Button>
+      <Button onClick={clearFilters}>Reset Filters</Button>
+      <Button loading={isExpiryPending} onClick={checkExpiry}>Expiry Check</Button>
+    </Space>
+  );
+
+  return (
+    <>
+      {viewType === "table" ? (
+        <CommonTableLayout
+          columns={activeColumns}
+          dataSource={users}
+          rowKey="id"
+          loading={isLoading || isFetching}
+          pageSize={pageSize}
+          disableClientSearch
+          searchValue={emailSearch}
+          onSearchChange={setEmailSearch}
+          searchPlaceholder="Search by email, name, phone, or group..."
+          pagination={{
+            current: pagination.page || page,
+            pageSize: pagination.limit || pageSize,
+            total: pagination.total || 0,
+            size: "small",
+            position: ["bottomRight"],
+            showSizeChanger: true,
+            pageSizeOptions: [10, 25, 50, 100],
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage);
+              if (nextPageSize !== pageSize) {
+                setPageSize(nextPageSize);
+                if (nextPage !== 1) setPage(1);
+              }
+            },
+          }}
+          toolbarExtra={toolbarExtraContent}
+          exportFilename="users"
+          exportHeaders={[
+            "ID",
+            "First Name",
+            "Last Name",
+            "Email",
+            "Phone",
+            "Status",
+            "Role",
+            "Country",
+            "City",
+            "Created At",
+          ]}
+          exportMapper={(user) => [
+            user.id,
+            user.first_name,
+            user.last_name,
+            user.email,
+            user.phone_number,
+            user.status,
+            user.role,
+            user.country,
+            user.city,
+            user.created_at,
+          ]}
+        />
+      ) : (
+        <div style={{ background: "#fff", height: "100%", display: "flex", flexDirection: "column" }}>
+          <Flex
+            justify="space-between"
+            align="center"
+            style={{
+              padding: "4px 20px",
+              height: "40px",
+              borderBottom: "1px solid #f0f0f0",
+              flexShrink: 0,
+            }}
+          >
+            {toolbarExtraContent}
+            <Input
+              placeholder="Search by email, name, phone, or group..."
+              prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+              size="middle"
+              allowClear
+              style={{ maxWidth: 280 }}
+              value={emailSearch}
+              onChange={(e) => setEmailSearch(e.target.value)}
+            />
+          </Flex>
+          <div style={{ flex: 1, overflow: "hidden" }}>
+            <KanbanUsers
+              searchQuery={debouncedEmailSearch}
+              globalFilters={kanbanGlobalFilters}
+              sortOrder={sortOrder}
+              refreshKey={kanbanRefreshKey}
+              stagesConfig={kanbanStagesConfig}
+              onOpenNotes={handleOpenNotes}
+              onOpenFollowup={handleOpenFollowup}
+              onOpenTrial={handleOpenTrial}
+              onOpenGroup={handleOpenGroup}
+            />
+          </div>
+        </div>
+      )}
 
       <TrialModal
         visible={isTrialModalOpen}
@@ -688,25 +1238,36 @@ export default function UsersPage() {
 
       {/* Notes Modal */}
       <Modal
-        title={<div><ProfileOutlined style={{ marginRight: 8 }} /> User Notes</div>}
+        title={<div><ProfileOutlined style={{ marginRight: 8 }} /> User Notes & Lead Funnel</div>}
         open={isNotesModalOpen}
         onCancel={() => setIsNotesModalOpen(false)}
         footer={null}
-        width={500}
+        width={520}
       >
         <div style={{ marginTop: 20 }}>
           <div style={{ marginBottom: 24, background: '#f9f9f9', padding: 16, borderRadius: 6 }}>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Note Date & Time</label>
-              <DatePicker
-                showTime
-                value={newNoteDate}
-                onChange={(date) => setNewNoteDate(date)}
-                format="YYYY-MM-DD HH:mm:ss"
-                style={{ width: "100%" }}
-                placeholder="Select custom date and time"
-                allowClear={false}
-              />
+            <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Note Date & Time</label>
+                <DatePicker
+                  showTime
+                  value={newNoteDate}
+                  onChange={(date) => setNewNoteDate(date)}
+                  format="YYYY-MM-DD HH:mm:ss"
+                  style={{ width: "100%" }}
+                  placeholder="Select custom date and time"
+                  allowClear={false}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Lead Stage / Status</label>
+                <Select
+                  value={newNoteLeadStatus}
+                  onChange={(val) => setNewNoteLeadStatus(val)}
+                  style={{ width: "100%" }}
+                  options={LEAD_STAGES.map((s) => ({ value: s.value, label: s.label }))}
+                />
+              </div>
             </div>
             <div>
               <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Description</label>
@@ -734,8 +1295,11 @@ export default function UsersPage() {
                     color: "blue",
                     children: (
                       <>
-                        <div style={{ fontSize: 13, color: "#1890ff", fontWeight: 500, marginBottom: 2 }}>
-                          {formatDateAndTime(note.note_date || note.date)}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <span style={{ fontSize: 13, color: "#1890ff", fontWeight: 500 }}>
+                            {formatDateAndTime(note.note_date || note.date)}
+                          </span>
+                          {renderLeadStatusTag(note.lead_status || "NC")}
                         </div>
                         {note.created_at && (
                           <div style={{ fontSize: 11, color: "#bfbfbf", marginBottom: 6 }}>
@@ -755,6 +1319,134 @@ export default function UsersPage() {
               </div>
             )}
           </div>
+        </div>
+      </Modal>
+
+      {/* ✅ Column Customization Modal */}
+      <Modal
+        title={
+          <Flex justify="space-between" align="center" style={{ paddingRight: 24 }}>
+            <span>Customize Table Columns</span>
+            <Button
+              type="text"
+              size="small"
+              icon={<UndoOutlined />}
+              onClick={resetColumnsConfig}
+            >
+              Reset Default
+            </Button>
+          </Flex>
+        }
+        open={isColumnModalOpen}
+        onCancel={() => setIsColumnModalOpen(false)}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setIsColumnModalOpen(false)}>
+            Done
+          </Button>,
+        ]}
+        width={450}
+      >
+        <div style={{ maxHeight: 380, overflowY: "auto", paddingRight: 8, marginTop: 12 }}>
+          <List
+            size="small"
+            dataSource={columnsConfig}
+            renderItem={(item, index) => (
+              <List.Item
+                draggable={!item.locked}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, index)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 12px",
+                  background: draggedItemIndex === index ? "#e6f7ff" : "#fafafa",
+                  marginBottom: 6,
+                  borderRadius: 4,
+                  border: draggedItemIndex === index ? "1px dashed #1890ff" : "1px solid #f0f0f0",
+                  cursor: item.locked ? "default" : "grab",
+                  userSelect: "none",
+                  transition: "background 0.2s ease",
+                }}
+              >
+                <Space>
+                  <HolderOutlined style={{ color: "#bfbfbf", cursor: item.locked ? "default" : "grab" }} />
+                  <Checkbox
+                    checked={item.visible !== false}
+                    disabled={item.locked}
+                    onChange={() => toggleColumnVisibility(item.key)}
+                  >
+                    <span style={{ fontWeight: 500, fontSize: 13 }}>{item.label}</span>
+                  </Checkbox>
+                </Space>
+              </List.Item>
+            )}
+          />
+        </div>
+      </Modal>
+
+      {/* ✅ Kanban Stages Customization Modal */}
+      <Modal
+        title={
+          <Flex justify="space-between" align="center" style={{ paddingRight: 24 }}>
+            <span>Customize & Sort Kanban Board Columns</span>
+            <Button
+              type="text"
+              size="small"
+              icon={<UndoOutlined />}
+              onClick={resetKanbanStagesConfig}
+            >
+              Reset Default
+            </Button>
+          </Flex>
+        }
+        open={isKanbanModalOpen}
+        onCancel={() => setIsKanbanModalOpen(false)}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setIsKanbanModalOpen(false)}>
+            Done
+          </Button>,
+        ]}
+        width={450}
+      >
+        <div style={{ maxHeight: 380, overflowY: "auto", paddingRight: 8, marginTop: 12 }}>
+          <List
+            size="small"
+            dataSource={kanbanStagesConfig}
+            renderItem={(item, index) => (
+              <List.Item
+                draggable
+                onDragStart={(e) => handleKanbanDragStart(e, index)}
+                onDragOver={handleKanbanDragOver}
+                onDrop={(e) => handleKanbanDrop(e, index)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 12px",
+                  background: draggedKanbanIndex === index ? "#e6f7ff" : "#fafafa",
+                  marginBottom: 6,
+                  borderRadius: 4,
+                  border: draggedKanbanIndex === index ? "1px dashed #1890ff" : "1px solid #f0f0f0",
+                  cursor: "grab",
+                  userSelect: "none",
+                  transition: "background 0.2s ease",
+                }}
+              >
+                <Space>
+                  <HolderOutlined style={{ color: "#bfbfbf", cursor: "grab" }} />
+                  <Checkbox
+                    checked={item.visible !== false}
+                    onChange={() => toggleKanbanStageVisibility(item.value)}
+                  >
+                    <span style={{ fontWeight: 500, fontSize: 13, marginRight: 6 }}>{item.label}</span>
+                  </Checkbox>
+                </Space>
+                {renderLeadStatusTag(item.value)}
+              </List.Item>
+            )}
+          />
         </div>
       </Modal>
 

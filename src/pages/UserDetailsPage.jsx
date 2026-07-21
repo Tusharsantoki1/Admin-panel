@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Button, Tag, Descriptions, Table, App, Flex, Tooltip, Form, DatePicker, Modal, Input, Timeline, Typography, InputNumber } from "antd";
+import { Button, Tag, Descriptions, Table, App, Flex, Tooltip, Form, DatePicker, Modal, Input, Timeline, Typography, InputNumber, Select } from "antd";
 import {
   ArrowLeftOutlined,
   CheckCircleFilled,
@@ -18,7 +18,7 @@ import { useTrialExtend } from "../hooks/useTrialExtend";
 import { useTrialdetail } from "../hooks/useTrialdetail";
 import { useUpdateGroup } from "../hooks/useUpdateGroup"; // ✅ Added Update Group Hook
 import { useQueryClient } from "@tanstack/react-query";
-import { formatDateAndTime, renderDateTimeWithHover } from "./UsersPage";
+import { formatDateAndTime, renderDateTimeWithHover, LEAD_STAGES, renderLeadStatusTag } from "./UsersPage";
 
 const { Text } = Typography;
 
@@ -91,6 +91,7 @@ export default function UserDetailsPage() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false); // ✅ Group Modal State
   const [newNoteText, setNewNoteText] = useState("");
   const [newNoteDate, setNewNoteDate] = useState(dayjs());
+  const [newNoteLeadStatus, setNewNoteLeadStatus] = useState("NC");
 
   useEffect(() => {
     queryClient.setQueryData(["title"], { title: "Global Search", count: "" });
@@ -111,6 +112,14 @@ export default function UserDetailsPage() {
       return [];
     }
   }, [userData?.notes]);
+
+  useEffect(() => {
+    let currentStatus = userData?.lead_status;
+    if (!currentStatus && parsedNotes.length > 0) {
+      currentStatus = parsedNotes[parsedNotes.length - 1]?.lead_status;
+    }
+    setNewNoteLeadStatus(currentStatus || "NC");
+  }, [userData?.lead_status, parsedNotes]);
 
   // --- Handlers ---
   const handleOpenFollowup = () => {
@@ -161,6 +170,7 @@ export default function UserDetailsPage() {
         user_id: Number(id),
         description: newNoteText,
         note_date: formattedDate,
+        lead_status: newNoteLeadStatus,
       });
       message.success("Note added successfully");
       setNewNoteText("");
@@ -374,6 +384,9 @@ export default function UserDetailsPage() {
             </Descriptions.Item>
             {renderDI("Permission ID", userData?.permissionId)}
             {renderDI("Plan ID", userData?.planId)}
+            <Descriptions.Item label="Lead Status">
+              {renderLeadStatusTag(userData?.lead_status || (parsedNotes.length > 0 ? parsedNotes[parsedNotes.length - 1]?.lead_status : "NC"))}
+            </Descriptions.Item>
             {/* ✅ Group Details Item with Edit Icon */}
             <Descriptions.Item label="Group">
               <span style={{ display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
@@ -437,20 +450,31 @@ export default function UserDetailsPage() {
         </SectionCard>
 
         {/* ── NOTES TIMELINE SECTION ── */}
-        <SectionCard title={<div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><ProfileOutlined /> User Notes</div>}>
+        <SectionCard title={<div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><ProfileOutlined /> User Notes & Lead Funnel</div>}>
           <div style={{ display: 'flex', gap: 24, flexDirection: 'row', alignItems: 'flex-start' }}>
             {/* Note Input Box */}
             <div style={{ flex: 1, background: '#f9f9f9', padding: 16, borderRadius: 6, border: '1px solid #f0f0f0' }}>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Note Date & Time</label>
-                <DatePicker
-                  showTime
-                  value={newNoteDate}
-                  onChange={(date) => setNewNoteDate(date)}
-                  format="YYYY-MM-DD HH:mm:ss"
-                  style={{ width: "100%", maxWidth: 250 }}
-                  allowClear={false}
-                />
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Note Date & Time</label>
+                  <DatePicker
+                    showTime
+                    value={newNoteDate}
+                    onChange={(date) => setNewNoteDate(date)}
+                    format="YYYY-MM-DD HH:mm:ss"
+                    style={{ width: "100%" }}
+                    allowClear={false}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Lead Stage / Status</label>
+                  <Select
+                    value={newNoteLeadStatus}
+                    onChange={(val) => setNewNoteLeadStatus(val)}
+                    style={{ width: "100%" }}
+                    options={LEAD_STAGES.map((s) => ({ value: s.value, label: s.label }))}
+                  />
+                </div>
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Description</label>
@@ -480,8 +504,11 @@ export default function UserDetailsPage() {
                       color: "blue",
                       children: (
                         <>
-                          <div style={{ fontSize: 13, color: "#1890ff", fontWeight: 500, marginBottom: 2 }}>
-                            {formatDateAndTime(note.note_date || note.date)}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                            <span style={{ fontSize: 13, color: "#1890ff", fontWeight: 500 }}>
+                              {formatDateAndTime(note.note_date || note.date)}
+                            </span>
+                            {renderLeadStatusTag(note.lead_status || "NC")}
                           </div>
                           {note.created_at && (
                             <div style={{ fontSize: 11, color: "#bfbfbf", marginBottom: 6 }}>

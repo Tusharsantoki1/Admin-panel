@@ -62,8 +62,8 @@ const checkExpiry = async (access_token: string) => {
   return { data: response };
 };
 
-const userNote = async (data: { user_id: number, description: string, note_date: any }, access_token: string) => {
-  const response = await callAPI("post", `${BASE_URL}/hedgex/admin/users/${data?.user_id}/notes`, { description: data?.description, note_date: data?.note_date }, access_token);
+const userNote = async (data: { user_id: number, description: string, note_date: any, lead_status?: string }, access_token: string) => {
+  const response = await callAPI("post", `${BASE_URL}/hedgex/admin/users/${data?.user_id}/notes`, { description: data?.description, note_date: data?.note_date, lead_status: data?.lead_status }, access_token);
   return { data: response };
 };
 
