@@ -17,7 +17,7 @@ app.get("*", (req, res) => {
     res.sendFile(path.resolve(__dirname, "dist/index.html"));
 });
 
-const PORT = 5001;
+const PORT = 3002;
 
 console.log("server started on port:", PORT);
 app.listen(PORT);
