@@ -57,6 +57,16 @@ const updateGroupDetail = async (data: { user_id: number, group: any }, access_t
   return { data: response };
 };
 
+const getPermissions = async (access_token: string) => {
+  const response = await callAPI("get", `${BASE_URL}/hedgex/admin/permissions`, {}, access_token);
+  return { data: response };
+};
+
+const updatePermissionDetail = async (data: { user_id: number, permissionId: any }, access_token: string) => {
+  const response = await callAPI("put", `${BASE_URL}/hedgex/admin/users/${data?.user_id}/permission`, { permissionId: data?.permissionId }, access_token);
+  return { data: response };
+};
+
 const checkExpiry = async (access_token: string) => {
   const response = await callAPI("post", `${BASE_URL}/hedgex/admin/users/check-expiries`, {}, access_token);
   return { data: response };
@@ -93,4 +103,5 @@ const getUsers = async (
   return { data: response };
 };
 
-export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans, getCoupon, getPaymentHistory, getUserDetail, getTrialDetail, userFollowup, checkExpiry, userNote, updateGroupDetail };
+export { userLogin, userRegister, getUser, getUsers, userTrialExtend, getPlans, getCoupon, getPaymentHistory, getUserDetail, getTrialDetail, userFollowup, checkExpiry, userNote, updateGroupDetail, getPermissions, updatePermissionDetail };
+

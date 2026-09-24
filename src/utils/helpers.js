@@ -71,3 +71,51 @@ export function filterData(data, search, filters = {}) {
     return matchSearch && matchFilters;
   });
 }
+
+export const StateList = [
+  { value: 1, text: "Jammu And Kashmir" },
+  { value: 2, text: "Himachal Pradesh" },
+  { value: 3, text: "Punjab" },
+  { value: 4, text: "Chandigarh" },
+  { value: 5, text: "Uttarakhand" },
+  { value: 6, text: "Haryana" },
+  { value: 7, text: "Delhi" },
+  { value: 8, text: "Rajasthan" },
+  { value: 9, text: "Uttar Pradesh" },
+  { value: 10, text: "Bihar" },
+  { value: 11, text: "Sikkim" },
+  { value: 12, text: "Arunachal Pradesh" },
+  { value: 13, text: "Nagaland" },
+  { value: 14, text: "Manipur" },
+  { value: 15, text: "Mizoram" },
+  { value: 16, text: "Tripura" },
+  { value: 17, text: "Meghalaya" },
+  { value: 18, text: "Assam" },
+  { value: 19, text: "West Bengal" },
+  { value: 20, text: "Jharkhand" },
+  { value: 21, text: "Orissa" },
+  { value: 22, text: "Chhattisgarh" },
+  { value: 23, text: "Madhya Pradesh" },
+  { value: 24, text: "Gujarat" },
+  { value: 26, text: "Dadra And Nagar Haveli & Daman And Diu" },
+  { value: 27, text: "Maharashtra" },
+  { value: 29, text: "Karnataka" },
+  { value: 30, text: "Goa" },
+  { value: 31, text: "Lakshadweep" },
+  { value: 32, text: "Kerala" },
+  { value: 33, text: "Tamil Nadu" },
+  { value: 34, text: "Puducherry" },
+  { value: 35, text: "Andaman And Nicobar" },
+  { value: 36, text: "Telangana" },
+  { value: 37, text: "Andhra Pradesh" },
+  { value: 38, text: "Ladakh" }
+];
+
+export const getStateName = (stateCode) => {
+  if (stateCode === null || stateCode === undefined || stateCode === "") return "--";
+  const found = StateList.find(
+    (item) => String(item.value) === String(stateCode).trim() || item.text.toLowerCase() === String(stateCode).trim().toLowerCase()
+  );
+  return found ? found.text : String(stateCode);
+};
+

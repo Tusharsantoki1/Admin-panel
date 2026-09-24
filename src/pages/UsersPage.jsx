@@ -33,6 +33,11 @@ import { useExpiryCheck } from "../hooks/useExpiryCheck";
 import { useAddNote } from "../hooks/useAddNote";
 import { Link } from "react-router-dom";
 import { useUpdateGroup } from "../hooks/useUpdateGroup";
+import { useUpdatePermission } from "../hooks/useUpdatePermission";
+import { usePermissionList } from "../hooks/usePermissionList";
+import { StateList, getStateName } from "../utils/helpers";
+
+export { StateList, getStateName };
 
 const { Text } = Typography;
 
@@ -119,8 +124,8 @@ export const DEFAULT_COLUMN_KEYS = [
   { key: "last_name", label: "Last Name", visible: true },
   { key: "email", label: "Email", visible: true },
   { key: "phone_number", label: "Phone", visible: true },
+  { key: "referral_code", label: "Referral Code", visible: true },
   { key: "status", label: "Status", visible: true },
-  { key: "country", label: "Country", visible: true },
   { key: "lead_status", label: "Lead Status", visible: true },
   { key: "group", label: "Group", visible: true },
   { key: "city", label: "City", visible: true },
@@ -128,6 +133,7 @@ export const DEFAULT_COLUMN_KEYS = [
   { key: "expiryDate", label: "Expiry Date", visible: true },
   { key: "followup", label: "Follow Up Date", visible: true },
   { key: "state", label: "State", visible: true },
+  { key: "country", label: "Country", visible: true },
   { key: "planId", label: "Plan ID", visible: true },
   { key: "isMobileVerified", label: "Mobile Verified", visible: true },
   { key: "isEmailVerified", label: "Email Verified", visible: true },
@@ -215,6 +221,7 @@ export default function UsersPage() {
   const [form] = Form.useForm();
   const [followupForm] = Form.useForm();
   const [groupForm] = Form.useForm(); // ✅ Added Group Form
+  const [permissionForm] = Form.useForm(); // ✅ Added Permission Form
 
   const queryClient = useQueryClient();
   const [pageSize, setPageSize] = useState(25);
@@ -472,11 +479,15 @@ export default function UsersPage() {
   const { mutateAsync: expiryCheck, isPending: isExpiryPending } = useExpiryCheck();
   const { mutateAsync: addNote, isPending: isNotePending } = useAddNote();
   const { mutateAsync: updateGroup, isPending: isGroupPending } = useUpdateGroup(); // ✅ Initialize Group Update Hook
+  const { mutateAsync: updatePermission, isPending: isPermissionPending } = useUpdatePermission(); // ✅ Initialize Permission Hook
+  const { data: permissionsResponse } = usePermissionList();
+  const permissionsList = permissionsResponse?.data || [];
 
   const [isTrialModalOpen, setIsTrialModalOpen] = useState(false);
   const [isFollowupModalOpen, setIsFollowupModalOpen] = useState(false);
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false); // ✅ Group Modal State
+  const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false); // ✅ Permission Modal State
   const [newNoteText, setNewNoteText] = useState("");
   const [newNoteDate, setNewNoteDate] = useState(dayjs());
   const [newNoteLeadStatus, setNewNoteLeadStatus] = useState("NC");
@@ -563,6 +574,29 @@ export default function UsersPage() {
     }
   };
 
+  // ✅ Open Permission Modal
+  const handleOpenPermission = (user) => {
+    setSelectedUser(user);
+    permissionForm.setFieldsValue({ permissionId: user.permissionId });
+    setIsPermissionModalOpen(true);
+  };
+
+  // ✅ Submit Permission Update
+  const handlePermissionSubmit = async () => {
+    try {
+      const values = await permissionForm.validateFields();
+      await updatePermission({
+        user_id: selectedUser.id,
+        permissionId: values.permissionId,
+      });
+      message.success("Permission updated successfully");
+      setIsPermissionModalOpen(false);
+      refetch();
+    } catch (err) {
+      if (!err.errorFields) message.error("Failed to update permission");
+    }
+  };
+
   const handleOpenNotes = (user) => {
     setSelectedUser(user);
     setNewNoteText("");
@@ -630,7 +664,7 @@ export default function UsersPage() {
   const filters = useMemo(() => {
     const nextFilters = {};
 
-    if (debouncedEmailSearch) nextFilters.search = { key: ["first_name", "last_name", "email", "phone_number", "group"], value: debouncedEmailSearch };
+    if (debouncedEmailSearch) nextFilters.search = { key: ["first_name", "last_name", "email", "phone_number", "group", "referral_code"], value: debouncedEmailSearch };
     if (statusFilter) nextFilters.status = statusFilter;
     if (roleFilter) nextFilters.role = roleFilter;
     if (countryFilter) nextFilters.country = countryFilter;
@@ -811,6 +845,14 @@ export default function UsersPage() {
     },
     { title: "Phone", dataIndex: "phone_number", key: "phone_number", width: 150, ellipsis: true },
     {
+      title: "Referral Code",
+      dataIndex: "referral_code",
+      key: "referral_code",
+      width: 130,
+      ellipsis: true,
+      render: (value) => (value ? <Tag color="green" style={{ fontSize: 11, margin: 0 }}>{value}</Tag> : "--"),
+    },
+    {
       title: "Status",
       dataIndex: "status",
       key: "status",
@@ -840,7 +882,14 @@ export default function UsersPage() {
       ellipsis: true,
       render: (value) => normalizeLabel(value),
     },
-    { title: "State", dataIndex: "state", key: "state", width: 110, ellipsis: true },
+    {
+      title: "State",
+      dataIndex: "state",
+      key: "state",
+      width: 140,
+      ellipsis: true,
+      render: (value) => getStateName(value),
+    },
     {
       title: "City",
       dataIndex: "city",
@@ -898,8 +947,24 @@ export default function UsersPage() {
       title: "Perm ID",
       dataIndex: "permissionId",
       key: "permissionId",
-      width: 100,
-      render: (value) => value ?? "--",
+      width: 120,
+      render: (value, record) => (
+        <Space>
+          {value != null && value !== "" ? (
+            <Tag color="geekblue" style={{ fontSize: 11, margin: 0 }}>
+              {value}
+            </Tag>
+          ) : (
+            "--"
+          )}
+          <Tooltip title="Switch Permission">
+            <EditOutlined
+              style={{ color: "#1890ff", cursor: "pointer", marginLeft: 2 }}
+              onClick={() => handleOpenPermission(record)}
+            />
+          </Tooltip>
+        </Space>
+      ),
     },
     {
       title: "B. Addon",
@@ -988,7 +1053,7 @@ export default function UsersPage() {
         );
       },
     },
-  ], [handleOpenTrial, handleOpenFollowup, handleOpenNotes, handleOpenGroup]);
+  ], [handleOpenTrial, handleOpenFollowup, handleOpenNotes, handleOpenGroup, handleOpenPermission]);
 
   const columnsMap = useMemo(() => {
     const map = {};
@@ -1103,7 +1168,7 @@ export default function UsersPage() {
           disableClientSearch
           searchValue={emailSearch}
           onSearchChange={setEmailSearch}
-          searchPlaceholder="Search by email, name, phone, or group..."
+          searchPlaceholder="Search by email, name, phone, group, or referral code..."
           pagination={{
             current: pagination.page || page,
             pageSize: pagination.limit || pageSize,
@@ -1128,9 +1193,11 @@ export default function UsersPage() {
             "Last Name",
             "Email",
             "Phone",
+            "Referral Code",
             "Status",
             "Role",
             "Country",
+            "State",
             "City",
             "Created At",
           ]}
@@ -1140,9 +1207,11 @@ export default function UsersPage() {
             user.last_name,
             user.email,
             user.phone_number,
+            user.referral_code || "--",
             user.status,
             user.role,
             user.country,
+            getStateName(user.state),
             user.city,
             user.created_at,
           ]}
@@ -1161,7 +1230,7 @@ export default function UsersPage() {
           >
             {toolbarExtraContent}
             <Input
-              placeholder="Search by email, name, phone, or group..."
+              placeholder="Search by email, name, phone, group, or referral code..."
               prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
               size="middle"
               allowClear
@@ -1209,6 +1278,45 @@ export default function UsersPage() {
         <Form form={groupForm} layout="vertical" style={{ marginTop: 10 }}>
           <Form.Item label="Group Name" name="group">
             <Input placeholder="Enter group name" allowClear />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* ✅ Permission Update Modal */}
+      <Modal
+        title="Switch User Permission"
+        open={isPermissionModalOpen}
+        onOk={handlePermissionSubmit}
+        onCancel={() => setIsPermissionModalOpen(false)}
+        confirmLoading={isPermissionPending}
+        width={420}
+        okText="Save"
+      >
+        <Form form={permissionForm} layout="vertical" style={{ marginTop: 10 }}>
+          <div style={{ marginBottom: 14, color: "#666", fontSize: 13 }}>
+            User: <b>{selectedUser?.first_name || selectedUser?.last_name ? `${selectedUser.first_name || ""} ${selectedUser.last_name || ""}`.trim() : selectedUser?.email}</b>
+          </div>
+          <Form.Item
+            label="Permission Profile"
+            name="permissionId"
+            help="Select a permission profile to assign or clear permission"
+          >
+            {permissionsList && permissionsList.length > 0 ? (
+              <Select
+                placeholder="Select permission profile"
+                allowClear
+                options={permissionsList.map((p) => ({
+                  value: p.id,
+                  label: `${p.name || `Permission #${p.id}`} (ID: ${p.id})`,
+                }))}
+              />
+            ) : (
+              <InputNumber
+                style={{ width: "100%" }}
+                placeholder="Enter Permission ID (e.g. 1, 2, 3...)"
+                min={0}
+              />
+            )}
           </Form.Item>
         </Form>
       </Modal>

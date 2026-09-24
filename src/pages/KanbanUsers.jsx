@@ -120,7 +120,7 @@ function KanbanColumn({
         const effectiveSearch = [searchQuery, debouncedColumnSearch].filter(Boolean).join(" ").trim();
         if (effectiveSearch) {
           combinedFilters.search = {
-            key: ["first_name", "last_name", "email", "phone_number", "group"],
+            key: ["first_name", "last_name", "email", "phone_number", "group", "referral_code"],
             value: effectiveSearch,
           };
         }
@@ -424,13 +424,21 @@ function KanbanColumn({
                   </div>
                 )}
 
-                {/* Group & Dates */}
+                {/* Group, Referral & Dates */}
                 <Flex align="center" justify="space-between" style={{ marginTop: 8, paddingTop: 6, borderTop: "1px dashed #f0f0f0" }}>
-                  <Space size={4}>
+                  <Space size={4} wrap>
                     <span style={{ fontSize: 11, color: "#8c8c8c" }}>Group:</span>
                     <Tag color="purple" style={{ fontSize: 10, margin: 0 }}>
                       {user.group || "Default"}
                     </Tag>
+                    {user.referral_code && (
+                      <>
+                        <span style={{ fontSize: 11, color: "#8c8c8c", marginLeft: 2 }}>Ref:</span>
+                        <Tag color="cyan" style={{ fontSize: 10, margin: 0 }}>
+                          {user.referral_code}
+                        </Tag>
+                      </>
+                    )}
                   </Space>
 
                   {user.followup && (

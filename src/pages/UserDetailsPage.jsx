@@ -17,8 +17,11 @@ import { useAddNote } from "../hooks/useAddNote";
 import { useTrialExtend } from "../hooks/useTrialExtend";
 import { useTrialdetail } from "../hooks/useTrialdetail";
 import { useUpdateGroup } from "../hooks/useUpdateGroup"; // ✅ Added Update Group Hook
+import { useUpdatePermission } from "../hooks/useUpdatePermission";
+import { usePermissionList } from "../hooks/usePermissionList";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateAndTime, renderDateTimeWithHover, LEAD_STAGES, renderLeadStatusTag } from "./UsersPage";
+import { getStateName } from "../utils/helpers";
 
 const { Text } = Typography;
 
@@ -80,15 +83,20 @@ export default function UserDetailsPage() {
   const { mutateAsync: addNote, isPending: isNotePending } = useAddNote();
   const { mutateAsync: trialExtend, isPending: isTrialPending } = useTrialExtend();
   const { mutateAsync: updateGroup, isPending: isGroupPending } = useUpdateGroup(); // ✅ Initialize Group Update Hook
+  const { mutateAsync: updatePermission, isPending: isPermissionPending } = useUpdatePermission(); // ✅ Initialize Permission Hook
+  const { data: permissionsResponse } = usePermissionList();
+  const permissionsList = permissionsResponse?.data || [];
   const { data: trial_activates, isLoading: trial_history_loading, refetch: refetchTrialHistory } = useTrialdetail(Number(id));
 
   // --- States & Forms ---
   const [followupForm] = Form.useForm();
   const [trialForm] = Form.useForm();
   const [groupForm] = Form.useForm(); // ✅ Added Group Form
+  const [permissionForm] = Form.useForm(); // ✅ Added Permission Form
 
   const [isFollowupModalOpen, setIsFollowupModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false); // ✅ Group Modal State
+  const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false); // ✅ Permission Modal State
   const [newNoteText, setNewNoteText] = useState("");
   const [newNoteDate, setNewNoteDate] = useState(dayjs());
   const [newNoteLeadStatus, setNewNoteLeadStatus] = useState("NC");
@@ -159,6 +167,26 @@ export default function UserDetailsPage() {
       if (refetch) refetch();
     } catch (err) {
       if (!err.errorFields) message.error("Failed to update group");
+    }
+  };
+
+  const handleOpenPermission = () => {
+    permissionForm.setFieldsValue({ permissionId: userData?.permissionId });
+    setIsPermissionModalOpen(true);
+  };
+
+  const handlePermissionSubmit = async () => {
+    try {
+      const values = await permissionForm.validateFields();
+      await updatePermission({
+        user_id: Number(id),
+        permissionId: values.permissionId,
+      });
+      message.success("Permission updated successfully");
+      setIsPermissionModalOpen(false);
+      if (refetch) refetch();
+    } catch (err) {
+      if (!err.errorFields) message.error("Failed to update permission");
     }
   };
 
@@ -354,6 +382,7 @@ export default function UserDetailsPage() {
             {renderDI("User ID", userData?.id)}
             {renderDI("First Name", userData?.first_name)}
             {renderDI("Last Name", userData?.last_name)}
+            {renderDI("Referral Code", userData?.referral_code)}
             <Descriptions.Item label="Email">
               <span style={{ display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
                 <Cell value={userData?.email} style={{ flex: "1 1 0", minWidth: 0 }} />
@@ -382,7 +411,18 @@ export default function UserDetailsPage() {
                 {userData?.followup ? formatDateAndTime(userData?.followup) : "—"}
               </span>
             </Descriptions.Item>
-            {renderDI("Permission ID", userData?.permissionId)}
+            {/* ✅ Permission Details Item with Edit Icon */}
+            <Descriptions.Item label="Permission ID">
+              <span style={{ display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
+                <Cell value={userData?.permissionId} style={{ flex: "1 1 0", minWidth: 0 }} />
+                <Tooltip title="Switch Permission">
+                  <EditOutlined
+                    style={{ color: "#1890ff", cursor: "pointer", flexShrink: 0 }}
+                    onClick={handleOpenPermission}
+                  />
+                </Tooltip>
+              </span>
+            </Descriptions.Item>
             {renderDI("Plan ID", userData?.planId)}
             <Descriptions.Item label="Lead Status">
               {renderLeadStatusTag(userData?.lead_status || (parsedNotes.length > 0 ? parsedNotes[parsedNotes.length - 1]?.lead_status : "NC"))}
@@ -572,7 +612,7 @@ export default function UserDetailsPage() {
         <SectionCard title="Location & Account Detail">
           <Descriptions {...descProps}>
             {renderDI("City", userData?.city)}
-            {renderDI("State", userData?.state)}
+            {renderDI("State", getStateName(userData?.state))}
             {renderDI("Country", userData?.country)}
             {renderDI("GST No", userData?.gstNo)}
           </Descriptions>
@@ -692,6 +732,45 @@ export default function UserDetailsPage() {
         <Form form={groupForm} layout="vertical" style={{ marginTop: 10 }}>
           <Form.Item label="Group Name" name="group">
             <Input placeholder="Enter group name" allowClear />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* ── PERMISSION MODAL ── */}
+      <Modal
+        title="Switch User Permission"
+        open={isPermissionModalOpen}
+        onOk={handlePermissionSubmit}
+        onCancel={() => setIsPermissionModalOpen(false)}
+        confirmLoading={isPermissionPending}
+        width={420}
+        okText="Save"
+      >
+        <Form form={permissionForm} layout="vertical" style={{ marginTop: 10 }}>
+          <div style={{ marginBottom: 14, color: "#666", fontSize: 13 }}>
+            User: <b>{userData?.first_name || userData?.last_name ? `${userData.first_name || ""} ${userData.last_name || ""}`.trim() : userData?.email}</b>
+          </div>
+          <Form.Item
+            label="Permission Profile"
+            name="permissionId"
+            help="Select a permission profile to assign or clear permission"
+          >
+            {permissionsList && permissionsList.length > 0 ? (
+              <Select
+                placeholder="Select permission profile"
+                allowClear
+                options={permissionsList.map((p) => ({
+                  value: p.id,
+                  label: `${p.name || `Permission #${p.id}`} (ID: ${p.id})`,
+                }))}
+              />
+            ) : (
+              <InputNumber
+                style={{ width: "100%" }}
+                placeholder="Enter Permission ID (e.g. 1, 2, 3...)"
+                min={0}
+              />
+            )}
           </Form.Item>
         </Form>
       </Modal>
